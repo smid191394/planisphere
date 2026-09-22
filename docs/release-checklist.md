@@ -38,3 +38,17 @@ darwin-arm64 and win32-x64.
 - [ ] A machine whose Python is named only `python` is found.
 - [ ] Windows: with only the Microsoft Store's `python.exe` stub, the message
       says to install Python 3.
+
+## Publishing
+
+The listing on both marketplaces is the README inside the package, and its
+images load from this repository on GitHub.
+
+- [ ] The repository is public. While it is private, the listing's images and
+      its links into the repository are broken.
+- [ ] `CHANGELOG.md` has an entry for this version.
+- [ ] `npm run screenshots` has been run since the drawing's look last changed,
+      and the two images match what the viewer draws in an editor.
+- [ ] Published to the Visual Studio Marketplace with `vsce publish`, and to
+      Open VSX, which Cursor installs from, with `ovsx publish`.
+- [ ] On both published pages the README's images show, and its links work.

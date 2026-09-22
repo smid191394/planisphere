@@ -81,7 +81,8 @@
     "test:packaged": "node --test packaging/tests/",
     "vendor:rust": "analyzers/rust/vendor.sh",
     "build:analyzers": "scripts/build-analyzers.sh",
-    "test:e2e": "node e2e/run.js"
+    "test:e2e": "node e2e/run.js",
+    "screenshots": "npm run compile && node scripts/screenshots.js"
   },
   "dependencies": {
     "cytoscape": "^3.33.1",
@@ -92,6 +93,7 @@
     "@types/node": "^25.2.3",
     "@types/vscode": "^1.85.0",
     "@vscode/test-electron": "^3.1.0",
-    "@vscode/vsce": "^3.9.2"
+    "@vscode/vsce": "^3.9.2",
+    "playwright-core": "^1.63.0"
   }
 }

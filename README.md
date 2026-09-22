@@ -1,108 +1,55 @@
 # Planisphere
 
-Visualize symbol structure — types, top-level functions and the relationships between them — as an interactive graph in Cursor/VS Code, with click-to-jump. **Python**, **TypeScript**, **Go**, **Rust** and **Java**.
+Read a codebase as one drawing. Planisphere draws the types of a **Python**,
+**TypeScript**, **Go**, **Rust** or **Java** project as a radial map, and a click
+on any of them takes you to its source.
 
-## The name
+![FastAPI's types, drawn by Planisphere](docs/images/overview.png)
 
-A planisphere is a star chart that flattens the sky onto one rotating disc, so
-that you can see at a glance what is overhead. Planisphere does the same for a
-codebase: it flattens a tangle of modules and types into one drawing, laid over
-the starfield the viewer draws behind it.
+<sub>FastAPI, drawn from its own source. The red node is where the graph starts;
+solid lines are inheritance, dashed ones are uses.</sub>
 
-Its mascot is a dog named Sirius, after the Dog Star — the brightest star on
-any planisphere.
+## Getting started
 
-## Prerequisites
+1. Install **Planisphere** from the Extensions view of VS Code or Cursor.
+2. Right-click a folder in the Explorer and choose **Planisphere: Analyze
+   Folder**, or run the same command from the Command Palette.
+3. Planisphere writes `planisphere.json` into that folder and opens it as a
+   drawing. Where the folder holds more than one language, it asks which.
 
-**Opening a graph needs nothing at all.** The extension draws a `planisphere.json`
-somebody has already produced — a colleague's, or one from a repository — with no
-toolchain installed.
+The file is the drawing: open it again later and it is drawn without analysing
+anything again. Run the command again after the code changes to bring it up to
+date. The paths in it are absolute, so a drawing made on another machine opens,
+but jumps to the source only where the project sits at the same path.
 
-**Producing one from the editor needs nothing for TypeScript or Go**, and the
-toolchain of the language for the other three. Each analyzer reads the project's
-own source and never downloads its dependencies.
+## What each language needs
 
-| Reading | Needs | Why |
+**Opening a drawing needs nothing at all.** **Making one needs nothing for
+TypeScript or Go**, and the language's own toolchain for the other three.
+Planisphere reads the project's source and never downloads its dependencies.
+
+| Language | Needs | Why |
 | --- | --- | --- |
 | TypeScript | nothing | the compiler ships with the extension and runs on the editor's own Node |
 | Go | nothing | the analyzer ships compiled for Linux, macOS and Windows |
 | Rust | `cargo` | `syn`'s source ships with the extension and is built once, offline, on first use |
 | Python | Python 3, as `python3` or `python` (`py` on Windows) | the standard library's `ast` |
-| Java | `java` 21+ from a JDK | the runtime's own compiler module, `jdk.compiler` |
+| Java | `java` 21 or later, from a JDK | the runtime's own compiler module, `jdk.compiler` |
 
-A toolchain installed where the editor does not look — `~/.cargo/bin` when the
-editor was started without your shell's profile — is still found.
+A toolchain installed where the editor does not look, such as `~/.cargo/bin` in
+an editor started without your shell's profile, is still found. Where one is
+missing, Planisphere says which, and what to install.
 
-A `java` from a JRE without that module is told apart from a missing `java`, and
-says so. To **build** the `.vsix` yourself: Node.js + npm.
+## Reading the drawing
 
-## Install extension (for viewing graphs)
+![cobra's Command, focused, with its comment and methods beside it](docs/images/focus.png)
 
-```bash
-cd /path/to/planisphere
-npm install
-npm run package
-cursor --install-extension ./planisphere-0.1.0.vsix --force
-```
-
-Reload Window afterwards.
-
-Optional — put CLI on PATH:
-
-```bash
-chmod +x /path/to/planisphere/bin/planisphere
-ln -sf /path/to/planisphere/bin/planisphere ~/.local/bin/planisphere   # ensure ~/.local/bin is on PATH
-```
-
-## Usage
-
-### 1. Generate the graph file
-
-**From the editor:** right-click a folder in the Explorer and choose
-**Planisphere: Analyze Folder**, or run the same command from the Command Palette
-(`Ctrl+Shift+P`). It writes `planisphere.json` into that folder and opens
-it as a graph. Where the folder holds more than one language, it asks which.
-
-**From a terminal**, in the project you want to analyze:
-
-```bash
-planisphere
-```
-
-Writes **`./planisphere.json`**. Options:
-
-```bash
-planisphere /path/to/project
-planisphere -o graph.planisphere.json
-planisphere --stdout
-planisphere --lang go /path/to/module   # name the language when a repo holds more than one
-planisphere --lang rust /path/to/workspace
-planisphere --lang java /path/to/repo
-```
-
-Without PATH:
-
-```bash
-/path/to/planisphere/bin/planisphere
-# or
-python3 /path/to/planisphere/analyzers/python/planisphere.py     # or --lang python
-node    /path/to/planisphere/analyzers/typescript/planisphere.js  # or --lang typescript
-go -C /path/to/planisphere/analyzers/go run . "$PWD"          # or --lang go
-cargo run --release --manifest-path /path/to/planisphere/analyzers/rust/Cargo.toml -- "$PWD"   # or --lang rust
-java    /path/to/planisphere/analyzers/java/Analyzer.java "$PWD"        # or --lang java
-```
-
-### 2. Open the file in Cursor
-
-Open `planisphere.json` (double-click / Open). The Custom Editor shows the graph — no re-analysis on open.
-
-To see raw JSON: right-click → **Open With…** → **Text Editor**.
-
-### 3. Interact
+<sub>cobra's `Command`, clicked once: what it touches stays lit, and the panel
+shows the comment above it and its methods.</sub>
 
 - **Click** a node to focus it: what it touches stays lit, the rest dims, and the
-  panel shows the comment above its definition, or a group's members.
-  **Click it again** to jump to its source.
+  panel shows the comment above its definition and its members, or a group's
+  members. **Click it again** to jump to its source.
 - **Click** empty canvas or an edge to clear the focus.
 - **Right-click** a node to see only what it points to, two steps out.
   **Escape**, or the **←** button above the drawing, returns to the whole drawing.
@@ -115,16 +62,39 @@ To see raw JSON: right-click → **Open With…** → **Text Editor**.
   drawing makes.
 
 Edges are `contains`, `inherits`, `uses` and `references`; the legend shows how
-each is drawn.
+each is drawn. To see the file as JSON, right-click it and choose **Open With…**
+→ **Text Editor**.
 
-Paths in the artifact are **absolute**. After code changes, run `planisphere` again to refresh the file.
+## Without the editor
 
-## Tests
+The `planisphere` command line in this repository writes the same file, for a
+script or a CI job:
 
 ```bash
-npm test            # every analyzer, the CLI, the viewer's layout, the artifact contract and the package
-npm run test:e2e    # installs the packaged .vsix into a real VS Code and runs the command there
+planisphere                              # ./planisphere.json for the current directory
+planisphere /path/to/project
+planisphere -o go.planisphere.json       # any *.planisphere.json opens as a drawing
+planisphere --lang go /path/to/module    # name the language when a repository holds more than one
+planisphere --stdout
 ```
 
-`npm test` needs the five toolchains (`node`, `python3`, `go`, `cargo`, a JDK);
-each language also has its own script, such as `npm run test:go`.
+[CONTRIBUTING.md](CONTRIBUTING.md) says how to put it on your `PATH`.
+
+## The name
+
+A planisphere is a star chart that flattens the sky onto one rotating disc, so
+that you can see at a glance what is overhead. Planisphere does the same for a
+codebase: it flattens a tangle of modules and types into one drawing, laid over
+a starfield.
+
+Its mascot is a dog named Sirius, after the Dog Star, the brightest star on any
+planisphere.
+
+## Contributing
+
+Building from source, running an analyzer by hand, and the test suites are in
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+[MIT](LICENSE)
