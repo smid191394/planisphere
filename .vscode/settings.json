@@ -1,0 +1,7 @@
+{
+  // The sample projects under fixtures/ are clones of real repositories, and
+  // cpython's carries an Android testbed with a CMakeLists.txt in it. CMake
+  // Tools finds that file and, since it is not at the root, asks on every
+  // reload which CMakeLists.txt to configure. Nothing here is a CMake project.
+  "cmake.ignoreCMakeListsMissing": true
+}

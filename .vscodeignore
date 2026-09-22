@@ -1,0 +1,56 @@
+.vscode/**
+.vscode-test/**
+.cursor/**
+src/**
+openspec/**
+# How this project is planned is not part of it: without this line its command
+# documents and skills would ship inside the extension.
+.claude/**
+packaging/**
+# The end-to-end suite and the release checklist test the package; neither is in it.
+e2e/**
+docs/release-checklist.md
+# Build scripts: they make a package, and have no part in running one.
+scripts/**
+analyzers/**/tests/**
+# Except the vendored crates': cargo checksums every file a crate shipped with,
+# so dropping one makes the build fail rather than making the package smaller.
+!analyzers/rust/vendor/**
+bin/tests/**
+out/tests/**
+media/tests/**
+analyzers/go/**/*_test.go
+analyzers/go/**/testdata/**
+analyzers/rust/target/**
+contract/**
+fixtures/**
+**/__pycache__/**
+**/.pytest_cache/**
+node_modules/**/test/**
+node_modules/**/tests/**
+
+# The TypeScript analyzer parses with the compiler API, so the compiler ships —
+# but only the file `require("typescript")` loads. The other 130 are a command
+# line, a language server and typings that nothing here calls: 8.8 MB instead of
+# 23 MB, measured by running the analyzer against a copy holding only these two.
+node_modules/typescript/**
+!node_modules/typescript/package.json
+!node_modules/typescript/lib/typescript.js
+**/*.ts
+**/*.map
+**/*.vsix
+# Images ship only from media/, where the viewer and the listing load them: a
+# screenshot dropped at the root would otherwise ship inside the extension.
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.gif
+**/*.webp
+**/*.bmp
+!media/*.png
+!media/*.jpg
+.gitignore
+tsconfig.json
+**/.git/**
+**/.venv/**
+**/venv/**

@@ -1,0 +1,8 @@
+{
+  "name": "planisphere-e2e-runner",
+  "private": true,
+  "version": "0.0.0",
+  "publisher": "planisphere",
+  "engines": { "vscode": "^1.85.0" },
+  "main": "./index.js"
+}

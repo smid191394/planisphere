@@ -1,0 +1,1180 @@
+/* Single source of truth for graph colors: graph.js reads these via
+   getComputedStyle, and the legend swatches below use them directly, so the
+   legend can never drift from what is actually drawn. */
+:root {
+  /* `--node-class` is the colour of a type, class being the type every
+     language has. A kind the drawing has no colour for gets this one: it is
+     known to anchor the arrangement even when nothing names it. */
+  --node-class: #1E88E5;
+  --node-interface: #00BCD4;
+  --node-type: #7E57C2;
+  /* Amber is the closest neighbour `--node-file` has in the palette. Both are
+     rare — 189 file nodes in 10,628 across the Python corpus, and 1 to 34
+     enums per TypeScript project — and either can be recoloured, which is
+     what the settings panel is for. */
+  --node-enum: #FFB300;
+  /* Go's two. A struct is what a class is in a language without classes, and Go
+     artifacts carry no class, so it stays in the class's family. A package
+     anchors the drawing and takes the one hue nothing else here uses. */
+  --node-struct: #5C6BC0;
+  --node-package: #C0CA33;
+  --node-function: #43A047;
+  --node-file: #FB8C00;
+  --node-center: #E91E63;
+  --node-focus-border: #FFEB3B;
+  --edge-inherits: #90CAF9;
+  /* Dimmer than the other two on purpose. `uses` is the commonest edge by a
+     wide margin — a third of FastAPI's, and nearly every class-to-function
+     one — so at equal brightness it is what the drawing looks like. At 127
+     against 193 and 187 it recedes to being the background of the picture
+     rather than its subject, while keeping the hue that names it. */
+  --edge-uses: #9B72AF;
+  --edge-references: #80CBC4;
+  /* One per node wherever a language has a unit above the file, so it is drawn
+     as the quietest line there is: grey, thin and dotted. */
+  --edge-contains: #B0BEC5;
+  /* Deep space: the colour under the star field, and the colour every label is
+     outlined in so white glyphs keep their edges over star points. Declared
+     here for the same reason the node colours are — graph.js reads it back,
+     so the backdrop and the label outlines cannot drift apart. */
+  --space-deep: #05070B;
+}
+
+/* Widths mean total width, padding and border included. Without this the rail
+   buttons at `width: 100%` added their own padding and border on top of the
+   column's width, overflowed it by 14px, and got clipped on the right — which
+   read as the icons being off-centre with more space on one side. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: var(--vscode-font-family);
+  color: #E8EAED;
+  /* The editor's own colour, not a colour of ours.
+
+     This is what the panel shows while it waits for the drawing — the rail and
+     the canvas area are both hidden until then (see `body.ready`). A colour of
+     our own would be a visible step of its own: the tab's background gives way
+     to a slightly different flat colour, and only then does the star field
+     arrive. Borrowing the editor's makes that first step invisible, so the
+     panel goes straight from the tab to the drawing.
+
+     The literal is the fallback for a host that does not inject the variable;
+     it is the colour this was before. The rail keeps the literal deliberately:
+     it is a surface laid over the drawing and reads as one. */
+  background: var(--vscode-editor-background, #1B1F24);
+}
+
+/* Column down the left instead of a row across the top. On a landscape panel
+   showing a roughly circular drawing the fit is limited by height, so a column
+   costs nothing the drawing wanted and a row cost it directly — measured at
+   +5.3% fit zoom on tinydb at 1200x800. */
+body {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+}
+
+/* Out of flow, so opening it cannot resize the canvas. Only the collapsed
+   width is reserved (see #main's margin): the rail's resting state never
+   covers the drawing, and expanding lays the rest of it over the top rather
+   than squeezing the graph and re-framing it under the reader. */
+#sidebar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 4;
+  /* See `body.ready` below — the rail waits for the drawing rather than
+     appearing on its own first. */
+  visibility: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* Sized to the longest label rather than to a round number — "Show
+     functions" at 12px plus the icon column, the gap and the padding. A wider
+     rail is empty space charged to the drawing. */
+  width: 138px;
+  /* Horizontal padding is deliberately tighter than vertical: sideways it is
+     margin charged to the drawing, downward it is just row spacing. */
+  padding: 5px 3px;
+  border-right: 1px solid #3A4149;
+  background: #1B1F24;
+  transition: width 120ms ease;
+  /* Only visible while expanded, where it is genuinely floating over the
+     drawing; at rest the rail sits in its own reserved strip. */
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.45);
+}
+
+/* 16px icon + 8px button padding + 2px border + 6px rail padding. Exact, but
+   the centring below does not depend on it staying exact. */
+#sidebar[data-collapsed="true"] {
+  width: 32px;
+  box-shadow: none;
+}
+
+/* Centre the icon rather than relying on the arithmetic above coming out
+   even. With the label gone there is nothing else in the row to align to. */
+#sidebar[data-collapsed="true"] button {
+  justify-content: center;
+  gap: 0;
+}
+
+#sidebar button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 5px 4px;
+  /* Both pinned so a row's height cannot depend on whether its label is
+     showing. Without them the label's line box (font-size 12px at the
+     inherited `normal` line-height, about 16px) is taller than the icon's
+     (`line-height: 1`, 14px), so expanding grew every row by ~2px and
+     `align-items: center` pushed each icon down half of that — visible as the
+     toggle sliding down when the rail opened, and worse further down the rail
+     as the growth accumulated. */
+  min-height: 26px;
+  line-height: 16px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: none;
+  color: #E8EAED;
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+#sidebar button:hover {
+  background: #262B31;
+}
+
+#sidebar button[aria-pressed="true"] {
+  background: #1E88E5;
+  border-color: #1E88E5;
+  color: #FFFFFF;
+}
+
+/* Fixed width whether or not the rail is collapsed, so the icons do not shift
+   sideways as it opens — the label is what appears, not the whole row. */
+/* Centred as a box, not by baseline. Sharing the button's line box aligned the
+   two *boxes* but not the glyphs inside them: a 14px icon and a 12px label in
+   the same 16px line box get different half-leading, so their baselines differ
+   — and the icons are symbols (U+27F2, U+24D8) that a fallback font supplies
+   with metrics unrelated to the label's font, so baseline alignment was never
+   going to hold anyway. Giving this a fixed height and centring its content
+   geometrically decouples it from the label entirely. The fixed height is also
+   what makes an own `line-height` safe again: the box cannot grow, so it
+   cannot push the row's height around the way it did before. */
+/* The chevron points at where the rail is going, not where it is: left to
+   close, right to open. Driven off the same attribute the state lives in. */
+#sidebar[data-collapsed="true"] #sidebar-toggle .ico {
+  transform: scaleX(-1);
+}
+
+#sidebar .ico svg {
+  display: block;
+}
+
+#sidebar .ico {
+  flex: 0 0 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+}
+
+#sidebar[data-collapsed="true"] .lbl {
+  display: none;
+}
+
+#sidebar .rail-sep {
+  height: 1px;
+  margin: 4px 2px;
+  background: #3A4149;
+  flex: 0 0 auto;
+}
+
+/* Pushes itself and everything after it to the foot of the rail. Legend is
+   reference, not a control over what is drawn, so it does not belong in the
+   run of buttons that are. */
+#sidebar .rail-sep-foot {
+  margin-top: auto;
+}
+
+/* A box floating near the bottom edge, not a bar across it. Only what it
+   actually contains can take a click, so the canvas underneath stays draggable
+   right up to the field. */
+#searchbar {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  pointer-events: none;
+}
+
+#searchbar #symbol-search {
+  pointer-events: auto;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 6px 12px;
+  border: 1px solid #3A4149;
+  border-radius: 16px;
+  background: rgba(20, 23, 27, 0.92);
+  color: #E8EAED;
+  width: 168px;
+  text-align: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+#searchbar #symbol-search:focus {
+  outline: none;
+  border-color: #1E88E5;
+  width: 232px;
+}
+
+#searchbar #symbol-search::placeholder {
+  color: #7A828C;
+}
+
+/* Above the field, so the field itself does not move as this changes width. */
+#searchbar #search-status {
+  font-size: 11px;
+  color: #9AA3AD;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px var(--space-deep);
+}
+
+#searchbar #search-status:empty {
+  display: none;
+}
+
+/* Takes whatever the sidebar leaves. `min-width: 0` matters in a flex row:
+   without it this refuses to shrink below its content and the rail pushes the
+   drawing off the right edge instead of narrowing it. */
+/* The 32px is the rail's collapsed width, reserved so its resting state never
+   sits on top of the drawing. Everything wider than that overlays instead. */
+#main {
+  position: relative;
+  flex: 1 1 auto;
+  margin-left: 32px;
+  min-width: 0;
+  min-height: 0;
+  visibility: hidden;
+}
+
+/* The panel opens once, with everything in it.
+
+   Its parts are ready at different times — the rail is static markup and is
+   there from the first paint, the drawing needs the graph to arrive and lay
+   out, the star field needs its tile fetched — and showing each as it arrives
+   reads as the panel assembling itself rather than opening. So nothing shows
+   until all of it can: graph.js puts `ready` on the body when it has both
+   decided what to draw and heard back about the tile.
+
+   `visibility`, not `display`: cytoscape measures #main when it is built, and
+   `display: none` would make it measure zero. Visibility changes no layout,
+   so the rail still reserves its 32px and the drawing is framed for the size
+   it will actually be shown at. */
+body.ready #sidebar,
+body.ready #main {
+  visibility: visible;
+}
+
+/* The star field and the orbit rings, both painted by graph.js. The colour
+   here is the void they are drawn onto, and the only thing visible if the
+   image never loads. `pointer-events: none` matters: this sits under #cy, and
+   without it the canvas would swallow the drags cytoscape needs. */
+#space {
+  position: absolute;
+  inset: 0;
+  background-color: var(--space-deep);
+  pointer-events: none;
+}
+
+/* Transparent, so #space shows through. Cytoscape's own canvases are
+   transparent, so removing this background is all it takes. */
+#cy {
+  position: absolute;
+  inset: 0;
+}
+
+#empty,
+#error {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.8;
+  padding: 24px;
+  text-align: center;
+  background: var(--space-deep);
+  color: #E8EAED;
+}
+
+#error {
+  color: #EF9A9A;
+  opacity: 1;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* The comment above the focused node's definition. Same corner as the legend
+   — see the markup for why — and the same frame, so the two read as one kind
+   of thing rather than two panels that happen to overlap. */
+/* The right button's view: which node, how much of the drawing, the way back.
+   Top-left, the corner the reader starts in and the one nothing else uses —
+   the legend and the comment box share the top-right, search is bottom-centre.
+   Flush left at rest: the collapsed rail has a reserved strip of its own, so
+   there is nothing there to clear. */
+#reach-strip {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  transition: left 120ms ease;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px 3px 3px;
+  border: 1px solid #3A4149;
+  border-radius: 4px;
+  background: rgba(27, 31, 36, 0.92);
+  color: #C8CED6;
+  font-size: 12px;
+}
+
+/* Its own, because the id above outranks the shared class: without this the
+   strip stays on screen whenever the code says it is hidden. */
+#reach-strip.hidden {
+  display: none;
+}
+
+/* The expanded rail is drawn over the drawing rather than beside it — 138px
+   from the page edge over a #main that starts at 32px, so 106px of overlap —
+   and the strip steps past it for as long as it is out, at the rail's own
+   pace. */
+#sidebar[data-collapsed="false"] ~ #main #reach-strip {
+  left: calc(138px - 32px + 12px);
+}
+
+#reach-back {
+  padding: 1px 6px;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: #6FB1FF;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+#reach-back:hover {
+  background: #2C323A;
+}
+
+#reach-name {
+  color: #E8EAED;
+  font-weight: 600;
+}
+
+#reach-count {
+  color: #9AA3AD;
+  font-variant-numeric: tabular-nums;
+}
+
+#comment {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  width: 260px;
+  max-height: calc(100% - 24px);
+  padding: 12px 14px;
+  border: 1px solid #3A4149;
+  border-radius: 4px;
+  background: #22272E;
+  color: #E8EAED;
+  font-size: 11px;
+  line-height: 1.5;
+  /* Scrolls rather than grows: a long comment must not push the drawing
+     around or run off the panel. */
+  overflow-y: auto;
+}
+
+/* Not the legend's heading style, though it started as a copy of it. The
+   legend's headings are category names — "Nodes", "Edges" — where small caps
+   read as a label. This one is a symbol name, and `AsyncExitStackMiddleware`
+   is not the same string as `ASYNCEXITSTACKMIDDLEWARE`: Python's casing
+   carries meaning, and flattening it makes the panel disagree with both the
+   node it came from and the file it is quoting. */
+#comment h3 {
+  margin: 0 0 6px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 11px;
+  font-weight: 600;
+  color: #8B95A1;
+  /* A long symbol name is not worth wrapping into three lines above two lines
+     of comment. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A group's members, in the panel a comment would have used. Rows are
+   activatable: a group cannot be jumped to, so this list is the only way from
+   the drawing to any one of the classes it stands for. */
+#comment ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
+#comment li {
+  padding: 3px 4px;
+  border-radius: 3px;
+  color: #C8CED6;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* The path matters more than its leading directories, and the panel is
+     narrow, so the tail is what stays when it does not fit. */
+  direction: rtl;
+  text-align: left;
+}
+
+/* The row a search was answered with. Marked rather than merely listed: the
+   reader asked for this member by name and was brought to the type that holds
+   it, which may hold scores of them. */
+#comment li.picked {
+  background: #2F3742;
+  color: #E8EAED;
+  box-shadow: inset 2px 0 0 #6FA8FF;
+}
+
+#comment li:hover,
+#comment li:focus-visible {
+  background: #2E3540;
+  color: #E8EAED;
+  outline: none;
+}
+
+#comment pre {
+  margin: 0;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 12px;
+  line-height: 1.5;
+  /* Comments are prose often enough to wrap, and are written with their own
+     indentation often enough to keep it. */
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Sixteen rows want about 400px, and the window is not the viewer's to choose:
+   a split editor or a short screen gives less, and what did not fit was simply
+   unreachable. The cap leaves the same 12px at the bottom that `top` leaves at
+   the top, so the box reads as inset rather than as cut off. */
+#legend {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  width: 260px;
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 14px;
+  border: 1px solid #3A4149;
+  border-radius: 4px;
+  background: #22272E;
+  color: #E8EAED;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+#legend h3 {
+  margin: 0 0 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8B95A1;
+}
+
+#legend h3 + ul {
+  margin-top: 0;
+}
+
+#legend ul {
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+}
+
+/* Baseline, not centre: a gloss that runs to a second line should hang under
+   itself with the name still on the first, and centring would float the name
+   between the two. */
+#legend li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 1px 0;
+}
+
+#legend li:last-child {
+  margin-bottom: 0;
+}
+
+#legend ul:last-of-type {
+  margin-bottom: 0;
+}
+
+/* The swatch has no text, so it has no baseline to share. It is pinned to the
+   first line instead: half the difference between the line box (11px x 1.5)
+   and the dot. */
+#legend .swatch {
+  flex: 0 0 22px;
+  height: 10px;
+  display: flex;
+  align-items: center;
+  align-self: flex-start;
+  margin-top: 3px;
+}
+
+/* The swatches carry the same two layers the drawing does — face and a
+   brighter rim — or the legend stops describing what is on screen. The halo
+   these used to show was removed with the nodes' own.
+   `color-mix(… 55%, white)` is the same operation graph.js's `lighten()`
+   performs at RIM_LIGHTEN = 0.45, so the rim cannot drift from the canvas. */
+/* A mark shaped like a node, filled and rimmed the way the drawing does it.
+   The legend names marks and the settings panel sets their colours, so both
+   need the same dot — which is why the colour rules below are not scoped to
+   either. Size is, because the two sit in different rows. */
+.dot {
+  border-radius: 50%;
+  border: 1px solid;
+}
+
+#legend .dot {
+  width: 10px;
+  height: 10px;
+  margin: 0 auto;
+}
+
+#settings-body .dot {
+  width: 11px;
+  height: 11px;
+  flex: 0 0 auto;
+}
+
+/* Between the name and the controls, taking no space it does not need. The
+   row is a flex line and `row-name` absorbs the difference, so the control
+   grid to its right keeps the column positions it already had. */
+#settings-body .swatch {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+}
+
+/* A node's mark is a dot and 22px is room enough. A dashed line over 22px is
+   three dashes, which reads as three lines rather than as a dash pattern, so
+   an edge's mark gets twice the room — named rather than found with `:has`,
+   which this has no reason to depend on. */
+#settings-body .swatch-line {
+  width: 44px;
+}
+
+/* An edge, drawn rather than bordered. A CSS dashed border picks its dash
+   length from the border width, which at this size is a dash or two across the
+   whole swatch and reads as solid; and a CSS triangle on a zero-height border
+   sits half outside its own box. The stroke and the head are written by
+   `paintEdgeSwatches` from the same lookup the stylesheet uses. */
+#settings-body .line {
+  display: block;
+  overflow: visible;
+}
+
+/* Size is not a property of kind — the layout decides it, and a function is
+   drawn small because it orbits something, not because it is a function (in a
+   graph with no classes at all, functions are what the rings are made of). So
+   the kind swatches stay one size and a row of its own explains the size. */
+/* The drawing marks a group with a doubled rim; the swatch says the same
+   thing at 10px, where two hairlines would merge into one. */
+.dot.stacked {
+  background: var(--node-class);
+  border-width: 3px;
+  border-style: double;
+  border-color: color-mix(in srgb, var(--node-class) 55%, white);
+}
+
+.dot.node-class {
+  background: var(--node-class);
+  border-color: color-mix(in srgb, var(--node-class) 55%, white);
+}
+
+.dot.node-function {
+  background: var(--node-function);
+  border-color: color-mix(in srgb, var(--node-function) 55%, white);
+}
+
+.dot.node-file {
+  background: var(--node-file);
+  border-color: color-mix(in srgb, var(--node-file) 55%, white);
+}
+
+.dot.node-interface {
+  background: var(--node-interface);
+  border-color: color-mix(in srgb, var(--node-interface) 55%, white);
+}
+
+.dot.node-type {
+  background: var(--node-type);
+  border-color: color-mix(in srgb, var(--node-type) 55%, white);
+}
+
+.dot.node-enum {
+  background: var(--node-enum);
+  border-color: color-mix(in srgb, var(--node-enum) 55%, white);
+}
+
+.dot.node-struct {
+  background: var(--node-struct);
+  border-color: color-mix(in srgb, var(--node-struct) 55%, white);
+}
+
+.dot.node-package {
+  background: var(--node-package);
+  border-color: color-mix(in srgb, var(--node-package) 55%, white);
+}
+
+.dot.node-center {
+  background: var(--node-center);
+  border-color: color-mix(in srgb, var(--node-center) 55%, white);
+}
+
+/* Focus is the one mark that is not a colour but a rim: the node keeps
+   whatever face it had and gains a border four times the usual width. So the
+   swatch shows a class's face inside a thick yellow ring, which is what the
+   reader saw when they clicked one. */
+.dot.node-focus {
+  background: var(--node-class);
+  border: 2px solid var(--node-focus-border);
+}
+
+#legend .line {
+  width: 22px;
+  border-top-width: 2px;
+}
+
+#legend .line.edge-inherits {
+  border-top-style: solid;
+  border-top-color: var(--edge-inherits);
+}
+
+#legend .line.edge-uses {
+  border-top-style: dashed;
+  border-top-color: var(--edge-uses);
+}
+
+/* Mirrors the canvas dash pattern [2, 4] — a plain CSS dashed border would
+   look the same as the `uses` swatch. */
+#legend .line.edge-references {
+  border-top: none;
+  height: 2px;
+  background: repeating-linear-gradient(
+    to right,
+    var(--edge-references) 0 2px,
+    transparent 2px 6px
+  );
+}
+
+#legend .line.edge-contains {
+  border-top-style: dotted;
+  border-top-width: 1px;
+  border-top-color: var(--edge-contains);
+}
+
+/* A column of its own, so the names read down the panel as a list — but sized
+   to its content rather than to the longest name. Measured at the panel's own
+   260px: a fixed column wide enough for `doubled rim` leaves the gloss 120px,
+   and five of the six node rows wrap that would not otherwise. Alignment is
+   not worth doubling the height of the thing being aligned. */
+#legend .term {
+  flex: 0 0 auto;
+  font-weight: 600;
+}
+
+#legend .gloss {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: #A8B2BD;
+}
+
+/* The separator belongs to the join, not to either side: written into the
+   content it would be part of the gloss, and the caveat — a gloss with no name
+   in front of it — would grow a dash it has nothing to be separated from. */
+#legend .term + .gloss::before {
+  content: "\2014";
+  margin-right: 4px;
+}
+
+#legend kbd {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 11px;
+  padding: 1px 5px;
+  border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.35));
+  border-radius: 3px;
+  background: var(--vscode-keybindingLabel-background, rgba(128, 128, 128, 0.17));
+}
+
+/* The whole drawing surface, inside #main — which already leaves the rail its
+   reserved column. The rail stays: it is how the reader opened this and how
+   they close it, and covering it would mean reproducing it. */
+#settings {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  background: #1B1F24;
+  color: #E8EAED;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Out of the flow, over the settings column's own top padding. A band across
+   the panel would cost every section the height it takes. */
+#settings-actions {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Named rather than iconic. It undoes work, and an icon for that is a dare. */
+#settings-reset {
+  border: 1px solid #3A4149;
+  border-radius: 3px;
+  padding: 3px 9px;
+  background: none;
+  color: #8B95A1;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+#settings-reset:hover {
+  border-color: #556070;
+  color: #E8EAED;
+}
+
+#settings-close {
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 2px 7px;
+  background: none;
+  color: #8B95A1;
+  font-size: 13px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+#settings-close:hover {
+  border-color: #3A4149;
+  color: #E8EAED;
+}
+
+#settings-body {
+  flex: 1 1 auto;
+  /* Without this the panel does not scroll. A flex item's min-height is `auto`,
+     which refuses to shrink below its content, so `overflow: auto` never has
+     anything to do and the content pushes the panel open instead. */
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 18px 24px;
+}
+
+#settings-body section {
+  margin: 0 0 20px;
+}
+
+/* Only the first heading gets out of the close button's way. Indenting the
+   whole section shortened every row in it, so the colours in Nodes sat 150px
+   left of the colours in Edges and the two read as different tables. */
+#settings-body section:first-child > h3 {
+  padding-right: 40px;
+}
+
+#settings-body section h3 {
+  margin: 0 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #2C323A;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8B95A1;
+}
+
+#settings .setting-group {
+  margin: 0 0 18px;
+}
+
+#settings .setting-name {
+  margin: 0 0 2px;
+  font-weight: 600;
+}
+
+#settings .setting-note {
+  margin: 0 0 8px;
+  color: #8B95A1;
+}
+
+/* The whole row is the target, not the dot: a radio 11px across is a small
+   thing to hit, and the label beside it says the same thing. */
+#settings .setting {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 6px;
+  padding: 4px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+#settings .setting:hover {
+  background: #22272E;
+}
+
+#settings .setting input {
+  margin: 3px 0 0;
+  accent-color: #6FB1FF;
+  flex: 0 0 auto;
+}
+
+#settings .term {
+  color: #E8EAED;
+}
+
+#settings .gloss {
+  display: block;
+  color: #8B95A1;
+}
+
+/* One row per setting: what it is on the left, what it is set to on the
+   right, and the controls aligned down a column so the eye can run the list
+   without re-finding the input each time. */
+#settings-body .rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+#settings-body .row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 6px;
+  border-radius: 3px;
+}
+
+#settings-body .row:hover {
+  background: #22272E;
+}
+
+#settings-body .row-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: #E8EAED;
+}
+
+/* One set of columns for every row in the panel, so a colour swatch sits at
+   the same place whether its row has three controls after it or none. As a
+   flex line each row packed its own controls against the right edge, and Nodes
+   — one swatch — ended up nowhere near the Edges colours above it.
+
+   The columns are a revert and a control, three times over. Every row fills
+   the ones it has and leaves the rest standing empty, which is what keeps them
+   lined up. */
+/* One column per control, and a revert beside each. The edge rows carry four
+   controls, so eight columns: anything narrower wrapped the arrow onto a
+   second grid row, where it stopped reading as a column of its own. */
+#settings-body .row-controls {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 18px 34px 18px 56px 18px 84px 18px 84px;
+  align-items: center;
+  gap: 6px;
+}
+
+#settings-body input[type="color"] {
+  grid-column: 2;
+}
+
+#settings-body input.num {
+  grid-column: 4;
+}
+
+/* Every cell in this grid is placed by hand, so a control that is not placed
+   lands wherever auto-placement puts it — and two placed in the same column
+   push the second onto a row of its own. That is what the arrow did: `select`
+   pins both the line style and the arrow to column 6. */
+#settings-body select {
+  grid-column: 6;
+}
+
+/* Two pictures of the thing the setting does, side by side in the column the
+   selects use. The unchosen one is dimmed rather than outlined: what tells
+   them apart is the drawing inside, so a border round it would be the loudest
+   part of a control whose whole job is the picture. */
+/* The Layout section's own column. Its two rows sit flush right, where the
+   crowded-level pictures already were — the widths in Edges are a column
+   because they line up with each other, and there is nothing above this to
+   line up with. Placed after `input.num` so it wins on order rather than on
+   specificity. */
+#settings-body [data-revert="labelFloor"] {
+  grid-column: 7;
+}
+
+#settings-body input.num[data-setting="labelFloor"] {
+  grid-column: 8;
+  justify-self: end;
+}
+
+/* Flush right, the way the readout above it is. It used to sit in the line
+   style's column, which put it in the middle of a row whose other cells were
+   empty. */
+#settings-body .choices {
+  grid-column: 6 / -1;
+  justify-self: end;
+  display: flex;
+  gap: 4px;
+}
+
+#settings-body .choice {
+  display: block;
+  padding: 1px 2px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: none;
+  color: #6E7A88;
+  cursor: pointer;
+}
+
+#settings-body .choice:hover {
+  color: #A9B4C0;
+}
+
+#settings-body .choice.on {
+  border-color: #3D6FA8;
+  background: #24405F;
+  color: #DCE9F8;
+}
+
+#settings-body .choice svg {
+  display: block;
+  fill: currentColor;
+}
+
+/* A revert belongs immediately before the control it undoes, and which that is
+   is written on it. */
+#settings-body [data-revert^="palette."] {
+  grid-column: 1;
+}
+
+#settings-body [data-revert$=".width"] {
+  grid-column: 3;
+}
+
+#settings-body [data-revert$=".style"],
+#settings-body [data-revert="edges.arrow"],
+#settings-body [data-revert="bandOverflow"] {
+  grid-column: 5;
+}
+
+/* The header row labels the columns and carries no controls, so it must not
+   pick up the hover the rows have. */
+#settings-body .row-head {
+  padding-bottom: 2px;
+}
+
+#settings-body .row-head:hover {
+  background: none;
+}
+
+#settings-body .col-h {
+  grid-column: 2;
+  color: #8B95A1;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+#settings-body .col-h-num {
+  grid-column: 4;
+}
+
+#settings-body .col-h-sel {
+  grid-column: 6;
+}
+
+/* Scoped like its siblings. Unscoped it lost to `#settings-body .col-h`,
+   which puts every header in column 2 — so the arrow's header sat under
+   `colour` on a second line. */
+#settings-body .col-h-arrow {
+  grid-column: 8;
+}
+
+#settings-body select[data-setting$=".arrow"] {
+  grid-column: 8;
+}
+
+#settings-body [data-revert$=".arrow"] {
+  grid-column: 7;
+}
+
+#settings-body input[type="color"] {
+  width: 34px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid #3A4149;
+  border-radius: 3px;
+  background: none;
+  cursor: pointer;
+}
+
+#settings-body input.num {
+  width: 56px;
+  padding: 2px 4px;
+  border: 1px solid #3A4149;
+  border-radius: 3px;
+  background: #1B1F24;
+  color: #E8EAED;
+  font: inherit;
+  font-size: 11px;
+}
+
+#settings-body select {
+  width: 84px;
+  padding: 2px 4px;
+  border: 1px solid #3A4149;
+  border-radius: 3px;
+  background: #1B1F24;
+  color: #E8EAED;
+  font: inherit;
+  font-size: 11px;
+}
+
+/* Present only where there is something to undo, which makes the row of them
+   the answer to "what have I changed?" — a question the stored settings
+   cannot otherwise be asked. */
+/* Always there, so nothing beside it moves when it becomes relevant — the
+   reader is on their way to one of those controls with a mouse. */
+#settings-body .revert {
+  visibility: hidden;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: #6FB1FF;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+#settings-body .revert.shown {
+  visibility: visible;
+}
+
+#settings-body .revert:hover {
+  background: #2C323A;
+}
+
+/* Save is at the bottom because it is the end of the reading, and because a
+   control that commits belongs where you arrive rather than where you start. */
+/* Undo on the left, commit on the right, and the state of the commit standing
+   next to it. Save was in the middle with Reset beyond it, which put the end
+   of the reader's sweep on the button that throws work away, and left the
+   words describing Save at the far other side of the row from Save. */
+#settings-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  padding: 12px 0 0;
+  border-top: 1px solid #2C323A;
+}
+
+#settings-dirty {
+  margin-left: auto;
+  color: #E0A33A;
+  font-size: 11px;
+}
+
+/* Holds the right edge whether or not the note beside it is showing, so the
+   button does not move under the pointer the moment something changes. */
+#settings-save {
+  margin-left: auto;
+}
+
+#settings-dirty:not([hidden]) + #settings-save {
+  margin-left: 0;
+}
+
+#settings-foot button {
+  border: 1px solid #3A4149;
+  border-radius: 3px;
+  padding: 4px 12px;
+  background: none;
+  color: #8B95A1;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+#settings-foot button:hover:not(:disabled) {
+  border-color: #556070;
+  color: #E8EAED;
+}
+
+#settings-save:not(:disabled) {
+  border-color: #3D6FA8;
+  background: #24405F;
+  color: #DCE9F8;
+}
+
+#settings-foot button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}

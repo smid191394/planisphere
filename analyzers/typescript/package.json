@@ -1,0 +1,17 @@
+{
+  "name": "@planisphere/analyzer-typescript",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reads TypeScript into a *.planisphere.json structure graph",
+  "bin": { "planisphere-typescript": "./planisphere.js" },
+  "main": "./analyze_symbols.js",
+  "scripts": {
+    "test": "node --test tests/"
+  },
+  "dependencies": {
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

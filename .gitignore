@@ -1,0 +1,33 @@
+node_modules/
+out/
+.DS_Store
+*.vsix
+.session_cache.json
+
+# The corpus the analyzers are measured against: clones of real projects, one
+# directory per language, deliberately not vendored. ~1.5GB of third-party
+# source that a stray `git add .` would sweep in.
+#
+# Nothing under here is tracked, and no allow-list is needed: the Python tests
+# build their sources in `tempfile.TemporaryDirectory()` rather than reading
+# them from disk.
+fixtures/
+
+# Python bytecode caches: regenerated on every run and named after the
+# interpreter version, so they are churn in every diff and stale on an upgrade.
+__pycache__/
+*.py[cod]
+
+# The Rust analyzer's build output: compiled on demand, and hundreds of megabytes.
+analyzers/rust/target/
+
+# The Rust analyzer's vendored dependencies: third-party source, regenerated
+# by analyzers/rust/vendor.sh, shipped in the package but not carried here.
+analyzers/rust/vendor/
+analyzers/rust/.cargo/
+
+# The Go analyzer built for every platform by scripts/build-analyzers.sh: build output.
+analyzers/go/prebuilt/
+
+# The VS Code the end-to-end suite downloads and runs: 329 MB for 1.138.0, cached here.
+.vscode-test/

@@ -1,0 +1,42 @@
+schema: spec-driven
+
+context: |
+  Planisphere is a VS Code / Cursor extension and a CLI that read a codebase as
+  one drawing: the types of a Python, TypeScript, Go, Rust or Java project as a
+  radial map, with click-to-jump to the source.
+
+  Layout:
+  - analyzers/<language>/  one self-contained analyzer per language, each with
+    its own runtime and tests; it writes a planisphere.json artifact
+  - bin/planisphere        the CLI that picks the analyzer and writes the artifact
+  - src/                   the extension host (TypeScript): the command, the
+    custom editor, running analyzers
+  - media/graph.js         the viewer (webview), with its layout suite in media/tests
+  - contract/              checks every fixture artifact against the document rules
+  - packaging/, e2e/       the shipped package, and the command run in a real VS Code
+  - fixtures/<language>/   external clones measured against; gitignored
+
+  The artifact document is the whole interface between an analyzer and
+  everything downstream: nothing outside an analyzer's directory depends on a
+  path inside it.
+
+  Conventions:
+  - Everything written into the repository is English: code, comments, test
+    names, assertion messages, docs and OpenSpec artifacts.
+  - Specs and comments describe the product as it is and why. They do not tell
+    the story of how it got there: no "used to", "until this was fixed",
+    "previously", dates, or references to earlier changes. A measured number is
+    kept when it describes the product or real code as it is today.
+  - A change is proven by `npm run package`, `npm test` and `npm run test:e2e`,
+    and then installed into the editor with the editor's own CLI.
+  - Nothing is committed unless the author asks for it.
+
+rules:
+  proposal:
+    - Say why in terms of what a reader of the drawing or a user of the CLI meets, not in terms of the code.
+  specs:
+    - State each requirement as the product's current behaviour; put the reason beside it as a present-tense fact.
+    - Do not describe past behaviour, past defects or earlier changes.
+  tasks:
+    - End with the proof step (package, npm test, test:e2e, install) as its own task.
+    - Do not include a commit step.

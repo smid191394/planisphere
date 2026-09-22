@@ -1,0 +1,97 @@
+{
+  "name": "planisphere",
+  "displayName": "Planisphere",
+  "description": "Read a codebase as a drawing: the types of a Python, TypeScript, Go, Rust or Java project as a radial map, with click-to-jump to the source.",
+  "version": "0.1.0",
+  "publisher": "planisphere",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/smid191394/planisphere.git"
+  },
+  "icon": "media/icon.png",
+  "keywords": [
+    "visualization",
+    "code map",
+    "dependency graph",
+    "structure",
+    "navigation"
+  ],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "activationEvents": [
+    "onCustomEditor:planisphere.structureGraph"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "planisphere.structureGraph",
+        "displayName": "Planisphere Structure Graph",
+        "selector": [
+          {
+            "filenamePattern": "planisphere.json"
+          },
+          {
+            "filenamePattern": "*.planisphere.json"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
+    "commands": [
+      {
+        "command": "planisphere.analyze",
+        "title": "Planisphere: Analyze Folder"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "planisphere.analyze",
+          "when": "explorerResourceIsFolder",
+          "group": "z_planisphere@1"
+        }
+      ]
+    }
+  },
+  "bin": {
+    "planisphere": "bin/planisphere"
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "npm run compile && npm run test:host && npm run test:analyzer && npm run test:typescript && npm run test:go && npm run test:rust && npm run test:java && npm run test:cli && npm run test:layout && npm run test:contract && npm run test:packaged",
+    "test:host": "node --test out/tests/",
+    "test:analyzer": "PYTHONPATH=analyzers/python python3 -m unittest discover -s analyzers/python/tests -v",
+    "test:typescript": "node --test analyzers/typescript/tests/",
+    "test:go": "cd analyzers/go && GOTOOLCHAIN=local GOWORK=off go test ./...",
+    "test:rust": "cd analyzers/rust && cargo test --locked",
+    "test:java": "java analyzers/java/tests/Tests.java",
+    "test:cli": "node --test bin/tests/",
+    "test:layout": "node media/tests/run.js",
+    "test:contract": "node contract/conformance.js",
+    "planisphere": "bin/planisphere",
+    "package": "npm run compile && analyzers/rust/vendor.sh && scripts/build-analyzers.sh && vsce package",
+    "test:packaged": "node --test packaging/tests/",
+    "vendor:rust": "analyzers/rust/vendor.sh",
+    "build:analyzers": "scripts/build-analyzers.sh",
+    "test:e2e": "node e2e/run.js"
+  },
+  "dependencies": {
+    "cytoscape": "^3.33.1",
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@types/cytoscape": "^3.21.9",
+    "@types/node": "^25.2.3",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^3.9.2"
+  }
+}

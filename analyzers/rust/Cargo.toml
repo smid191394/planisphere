@@ -1,0 +1,15 @@
+[package]
+name = "planisphere-rust"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Planisphere's Rust analyzer: reads Rust source and writes a planisphere.json graph."
+
+[dependencies]
+# Rust ships no parser outside its compiler, so this is the one analyzer with a
+# dependency. `full` reads items and bodies, `visit` walks them, `printing` is
+# what `Spanned` needs to say where an item ends, and `clone-impls` lets a
+# module keep the items a macro body turned out to hold.
+syn = { version = "2", default-features = false, features = ["full", "parsing", "printing", "visit", "clone-impls"] }
+# A span has a line number outside a procedural macro only with this.
+proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }

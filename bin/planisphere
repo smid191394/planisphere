@@ -1,0 +1,263 @@
+#!/usr/bin/env bash
+# Planisphere CLI — run from anywhere after making this executable / on PATH.
+#
+# A dispatcher, not an analyzer. It works out which analyzer has source under
+# the given roots and runs that one; `--lang` names one outright.
+#
+# Where more than one language is present it says so and stops. Merging the two
+# documents would be mechanically free — ids are absolute paths, so nothing
+# collides, and the drawing already places disconnected groups side by side —
+# but whether a polyglot repo wants one drawing or two is a question about
+# reading rather than about mechanism, and nothing here answers it. Declining
+# leaves the question open; merging answers it by accident.
+set -euo pipefail
+
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+  DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+ROOT="$(cd "$(dirname "$SOURCE")/.." && pwd)"
+
+usage() {
+  cat <<'EOF'
+Usage: planisphere [--lang python|typescript|go|rust|java] [roots...] [-o OUT] [--stdout]
+
+Analyze source structure and write a *.planisphere.json graph.
+
+  --lang          which analyzer to run; without it, the one whose source is
+                  present under the roots
+  roots           project root(s) to scan (default: .)
+  -o, --output    output path (default: ./planisphere.json)
+  --stdout        print JSON to stdout instead of writing a file
+
+The Go analyzer needs `go` on PATH, the Rust analyzer needs `cargo`, and the
+Java analyzer needs `java` from a JDK — a runtime carrying the compiler module.
+EOF
+}
+
+LANG=""
+ROOTS=()
+ARGS=()
+skip_next=0
+for ((i = 1; i <= $#; i++)); do
+  a="${!i}"
+  if [ "$skip_next" = 1 ]; then
+    ARGS+=("$a")
+    skip_next=0
+    continue
+  fi
+  case "$a" in
+    --lang)
+      i=$((i + 1))
+      LANG="${!i-}"
+      if [ -z "$LANG" ]; then
+        echo "planisphere: --lang needs a language" >&2
+        exit 2
+      fi
+      ;;
+    --lang=*) LANG="${a#--lang=}" ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -o | --output)
+      ARGS+=("$a")
+      skip_next=1
+      ;;
+    -*) ARGS+=("$a") ;;
+    *)
+      ROOTS+=("$a")
+      ARGS+=("$a")
+      ;;
+  esac
+done
+[ ${#ROOTS[@]} -eq 0 ] && ROOTS=(".")
+
+# Directories every analyzer skips. Kept in step with the analyzers' own lists;
+# this one only has to be right enough to detect a language.
+PRUNE=(-name .git -o -name node_modules -o -name .venv -o -name venv \
+  -o -name __pycache__ -o -name dist -o -name build -o -name out \
+  -o -name tests -o -name test -o -name docs -o -name examples)
+
+has_source() { # has_source <find-args...>
+  local root
+  for root in "${ROOTS[@]}"; do
+    [ -e "$root" ] || continue
+    if [ -n "$(find "$root" \( "${PRUNE[@]}" \) -prune -o -type f "$@" -print -quit 2>/dev/null)" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Go's own detection, because Go skips more than the shared list does: vendored
+# and test-data trees, and every directory the go tool itself ignores. Adding
+# those to PRUNE would change what every other language is detected by.
+has_go_source() {
+  local root
+  for root in "${ROOTS[@]}"; do
+    [ -e "$root" ] || continue
+    if [ -n "$(find "$root" \( "${PRUNE[@]}" -o -name vendor -o -name testdata \
+      -o \( -type d \( -name '.?*' -o -name '_*' \) ! -path "$root" \) \) -prune \
+      -o -type f -name '*.go' ! -name '*_test.go' -print -quit 2>/dev/null)" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Java's own detection: Maven and Gradle write generated source into target/,
+# build/ and out/, and the analyzer skips all three; a directory starting with
+# "." is skipped as the analyzer skips it.
+has_java_source() {
+  local root
+  for root in "${ROOTS[@]}"; do
+    [ -e "$root" ] || continue
+    if [ -n "$(find "$root" \( "${PRUNE[@]}" -o -name target -o -name out \
+      -o \( -type d -name '.?*' ! -path "$root" \) \) -prune \
+      -o -type f -name '*.java' ! -name 'module-info.java' -print -quit 2>/dev/null)" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Rust's own detection: build output, benchmarks and vendored crates are not
+# source, and a directory starting with "." is skipped as the analyzer skips it.
+has_rust_source() {
+  local root
+  for root in "${ROOTS[@]}"; do
+    [ -e "$root" ] || continue
+    if [ -n "$(find "$root" \( "${PRUNE[@]}" -o -name target -o -name benches -o -name vendor \
+      -o \( -type d -name '.?*' ! -path "$root" \) \) -prune \
+      -o -type f -name '*.rs' -print -quit 2>/dev/null)" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# The Go analyzer shipped compiled for this platform, where this is an install.
+# A checkout runs its source, so that a change to the analyzer is what runs
+# next; an install runs what shipped, so that its reader needs no Go.
+shipped() { # shipped go
+  [ -d "$ROOT/.git" ] && return 1
+  local platform
+  case "$(uname -s)-$(uname -m)" in
+    Linux-x86_64) platform=linux-x64 ;;
+    Linux-aarch64 | Linux-arm64) platform=linux-arm64 ;;
+    Darwin-x86_64) platform=darwin-x64 ;;
+    Darwin-arm64) platform=darwin-arm64 ;;
+    *) return 1 ;;
+  esac
+  local exe="$ROOT/analyzers/$1/prebuilt/$platform/planisphere-$1"
+  [ -x "$exe" ] && echo "$exe"
+}
+
+# Python 3 as `python3`, or as `python` where an install names it only that —
+# asked its version first, because older macOS and Linux named Python 2 `python`.
+run_python() {
+  local py
+  for py in python3 python; do
+    if command -v "$py" >/dev/null 2>&1 &&
+      "$py" -c 'import sys; sys.exit(0 if sys.version_info[0] == 3 else 1)' 2>/dev/null; then
+      exec "$py" "$ROOT/analyzers/python/planisphere.py" "${ARGS[@]}"
+    fi
+  done
+  echo "planisphere: the Python analyzer needs Python 3, as 'python3' or 'python' on PATH, and it is not there" >&2
+  exit 1
+}
+run_typescript() { exec node "$ROOT/analyzers/typescript/planisphere.js" "${ARGS[@]}"; }
+# `go -C` moves the working directory into the analyzer, so the caller's own
+# directory goes with it for relative roots and -o. GOTOOLCHAIN=local turns a
+# newer go directive into a clear failure rather than a download, and GOWORK=off
+# keeps a reader's workspace file from pulling this module into theirs.
+run_go() {
+  local exe
+  if exe="$(shipped go)"; then PLANISPHERE_CWD="$PWD" exec "$exe" "${ARGS[@]}"; fi
+  if ! command -v go >/dev/null 2>&1; then
+    echo "planisphere: the Go analyzer needs 'go' on PATH, and it is not there" >&2
+    exit 1
+  fi
+  PLANISPHERE_CWD="$PWD" GOTOOLCHAIN=local GOWORK=off GOFLAGS= \
+    exec go -C "$ROOT/analyzers/go" run . "${ARGS[@]}"
+}
+
+# cargo is run from the analyzer's own directory, because that is where it
+# looks for `.cargo/config.toml` — the file that points it at the vendored
+# copy of `syn`, so that an installed extension builds with the network off.
+# The caller's directory arrives as PLANISPHERE_CWD instead, which relative roots
+# and -o resolve against. --locked builds exactly the dependency versions
+# Cargo.lock names, and --release is what makes a crate the size of tokio take
+# under a second.
+#
+# Where this is not a checkout, the build output goes to the reader's cache
+# rather than beside the analyzer: an installed extension's directory belongs to
+# the editor, which replaces it on every update.
+run_rust() {
+  if ! command -v cargo >/dev/null 2>&1; then
+    echo "planisphere: the Rust analyzer needs 'cargo' on PATH, and it is not there" >&2
+    exit 1
+  fi
+  if [ -z "${CARGO_TARGET_DIR-}" ] && [ ! -d "$ROOT/.git" ]; then
+    export CARGO_TARGET_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/planisphere/rust-target"
+  fi
+  cd "$ROOT/analyzers/rust" || exit 1
+  PLANISPHERE_CWD="$OLDPWD" exec cargo run --quiet --release --locked -- "${ARGS[@]}"
+}
+
+# `java` runs the analyzer straight from its source, so there is nothing to
+# build and nothing to install beside it. A runtime without the compiler module
+# cannot do that, and says so rather than failing on a missing class — this is
+# not the same as `javac` being absent, which does not matter here.
+run_java() {
+  if ! command -v java >/dev/null 2>&1; then
+    echo "planisphere: the Java analyzer needs 'java' on PATH, and it is not there" >&2
+    exit 1
+  fi
+  if ! java --list-modules 2>/dev/null | grep -q '^jdk.compiler'; then
+    echo "planisphere: the Java analyzer needs a runtime with the compiler module" >&2
+    echo "planisphere: this 'java' has no jdk.compiler; install a JDK" >&2
+    exit 1
+  fi
+  PLANISPHERE_CWD="$PWD" exec java "$ROOT/analyzers/java/Analyzer.java" "${ARGS[@]}"
+}
+
+case "$LANG" in
+  python | py) run_python ;;
+  typescript | ts) run_typescript ;;
+  go | golang) run_go ;;
+  rust | rs) run_rust ;;
+  java) run_java ;;
+  "") ;;
+  *)
+    echo "planisphere: unknown language '$LANG' (known: python, typescript, go, rust, java)" >&2
+    exit 2
+    ;;
+esac
+
+FOUND=()
+has_source -name '*.py' && FOUND+=("python")
+# Every extension the TypeScript analyzer walks, not only the two common ones.
+# `.mts` and `.cts` are TypeScript and the analyzer reads them; left out here, a
+# package written entirely in them would be told it held no analyzable source.
+has_source \( -name '*.ts' -o -name '*.tsx' -o -name '*.mts' -o -name '*.cts' \) \
+  ! -name '*.d.ts' ! -name '*.d.mts' ! -name '*.d.cts' && FOUND+=("typescript")
+has_go_source && FOUND+=("go")
+has_rust_source && FOUND+=("rust")
+has_java_source && FOUND+=("java")
+
+case ${#FOUND[@]} in
+  0)
+    echo "planisphere: no analyzable source under ${ROOTS[*]}" >&2
+    exit 1
+    ;;
+  1) "run_${FOUND[0]}" ;;
+  *)
+    echo "planisphere: found ${FOUND[*]} under ${ROOTS[*]}." >&2
+    echo "planisphere: name one with --lang; one artifact holds one language." >&2
+    exit 2
+    ;;
+esac
