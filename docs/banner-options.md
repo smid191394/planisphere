@@ -1,17 +1,17 @@
-# The panel, with the name big and one line under it — pick one
+# How close the panel can come — pick one
 
-The two lines about the languages and about clicking are gone: the nodes on the
-left already name the languages. Temporary: this file and its images go once
-one is chosen.
+Both have the name at 62px and one line under it. Temporary: this file and its
+images go once one is chosen.
 
-## p1 — name at 54px, in Outfit
+## near — the drawing stays, the panel comes as close as the labels allow
 
-![option p1](images/option-p1.jpg)
+Any closer and the panel covers the end of `TypeScript`.
 
-## p2 — the whole panel in its own monospace
+![option near](images/option-near.jpg)
 
-![option p2](images/option-p2.jpg)
+## shift — the drawing moves left too, so the two sit together
 
-## p3 — name at 62px, the line tucked under it
+More room between the pair and the right edge, and the mascot is nearer the
+corner.
 
-![option p3](images/option-p3.jpg)
+![option shift](images/option-shift.jpg)
