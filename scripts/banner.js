@@ -25,31 +25,37 @@ const SIZE = { width: 1200, height: 420 };
 
 /** What the mascot has hanging off it, in the colours the drawing gives them. */
 const LANGUAGES = [
-  { name: "Python", colour: "#1E88E5", degrees: -50 },
-  { name: "TypeScript", colour: "#00BCD4", degrees: -25 },
-  { name: "Go", colour: "#C0CA33", degrees: 0 },
-  { name: "Rust", colour: "#7E57C2", degrees: 25 },
-  { name: "Java", colour: "#FB8C00", degrees: 50 },
+  { name: "Python", colour: "#1E88E5" },
+  { name: "TypeScript", colour: "#00BCD4" },
+  { name: "Go", colour: "#C0CA33" },
+  { name: "Rust", colour: "#7E57C2" },
+  { name: "Java", colour: "#FB8C00" },
 ];
 
 /**
- * The languages as nodes hung off the mascot, drawn as the viewer draws a node
- * and the dashed line that reaches it — the mascot standing where the centre of
- * a drawing stands.
+ * The languages as a ring of nodes around the mascot, drawn as the viewer draws
+ * a node, the ring a layout puts one on, and the dashed line that reaches it —
+ * the mascot standing where the centre of a drawing stands.
  */
-function fan(cx, cy, reach) {
-  const marks = LANGUAGES.map(({ name, colour, degrees }) => {
-    const a = (degrees * Math.PI) / 180;
-    const x = cx + Math.cos(a) * reach;
-    const y = cy + Math.sin(a) * reach;
+function ring(cx, cy, radius) {
+  const marks = LANGUAGES.map(({ name, colour }, i) => {
+    // From the top, so that no two labels share a side by accident.
+    const a = ((-90 + (i * 360) / LANGUAGES.length) * Math.PI) / 180;
+    const x = cx + Math.cos(a) * radius;
+    const y = cy + Math.sin(a) * radius;
+    // The label sits outside the ring, on the side the node is on.
+    const outward = Math.cos(a) >= -0.2;
     return `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"
-        stroke="${colour}" stroke-width="1.4" stroke-dasharray="6 4" opacity="0.55" />
+        stroke="${colour}" stroke-width="1.4" stroke-dasharray="6 4" opacity="0.5" />
       <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9" fill="${colour}"
         stroke="#ffffff" stroke-opacity="0.5" stroke-width="1.5" />
-      <text x="${(x + 18).toFixed(1)}" y="${(y + 6).toFixed(1)}" fill="#dbe3ee"
-        font-family="DejaVu Sans, sans-serif" font-size="19">${name}</text>`;
+      <text x="${(x + (outward ? 17 : -17)).toFixed(1)}" y="${(y + 6).toFixed(1)}" fill="#dbe3ee"
+        text-anchor="${outward ? "start" : "end"}" font-family="DejaVu Sans, sans-serif" font-size="19">${name}</text>`;
   }).join("\n");
-  return `<svg class="fan" width="${SIZE.width}" height="${SIZE.height}" xmlns="http://www.w3.org/2000/svg">${marks}</svg>`;
+  return `<svg class="ring" width="${SIZE.width}" height="${SIZE.height}" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="${cx}" cy="${cy}" r="${radius}" fill="none" stroke="#33415a" stroke-width="1" opacity="0.7" />
+    ${marks}
+  </svg>`;
 }
 
 const html = (starfield, sirius) => `<!DOCTYPE html>
@@ -73,16 +79,16 @@ const html = (starfield, sirius) => `<!DOCTYPE html>
         inset: 0;
         background: linear-gradient(90deg, rgba(5, 7, 13, 0.8) 0%, rgba(5, 7, 13, 0.5) 55%, rgba(5, 7, 13, 0.3) 100%);
       }
-      .fan { position: absolute; left: 0; top: 0; }
-      .mascot { position: absolute; left: 104px; top: 86px; width: 256px; filter: drop-shadow(0 0 46px rgba(255, 235, 59, 0.22)); }
-      .words { position: absolute; left: 664px; top: 132px; }
+      .ring { position: absolute; left: 0; top: 0; }
+      .mascot { position: absolute; left: 170px; top: 96px; width: 232px; filter: drop-shadow(0 0 46px rgba(255, 235, 59, 0.22)); }
+      .words { position: absolute; left: 700px; top: 130px; }
       .name { font-size: 66px; font-weight: bold; letter-spacing: 1px; line-height: 1; }
       .line { margin-top: 16px; font-size: 20px; color: #E91E63; letter-spacing: 3px; text-transform: uppercase; }
     </style>
   </head>
   <body>
     <div class="veil"></div>
-    ${fan(232, 210, 232)}
+    ${ring(286, 210, 168)}
     <img class="mascot" src="${sirius}" alt="" />
     <div class="words">
       <div class="name">Planisphere</div>
