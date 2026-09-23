@@ -8,7 +8,7 @@ alwaysApply: true
 After changing anything that ships (`media/**`, `src/**`, `analyzers/**`, `bin/**`, `package.json`), do not tell the user only to reload the window: an installed extension runs its own copy, which changes only when the package is installed again.
 
 ```bash
-cd /home/q/planisphere
+cd <the repository>
 npm run package          # tsc, vendored Rust, Go executables, vsce package → planisphere-<version>.vsix
 npm run test:e2e         # installs that .vsix into a real VS Code and runs the command there
 cursor --install-extension ./planisphere-0.1.0.vsix --force
@@ -27,6 +27,6 @@ Then the one step that cannot be done from the terminal:
 
 ```bash
 # from the project directory — writes ./planisphere.json
-/home/q/planisphere/bin/planisphere
-/home/q/planisphere/bin/planisphere --lang go /path/to/module
+./bin/planisphere
+./bin/planisphere --lang go /path/to/module
 ```

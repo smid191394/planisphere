@@ -10,6 +10,14 @@
     "url": "https://github.com/smid191394/planisphere.git"
   },
   "icon": "media/icon.png",
+  "homepage": "https://github.com/smid191394/planisphere#readme",
+  "bugs": {
+    "url": "https://github.com/smid191394/planisphere/issues"
+  },
+  "galleryBanner": {
+    "color": "#05070D",
+    "theme": "dark"
+  },
   "keywords": [
     "visualization",
     "code map",

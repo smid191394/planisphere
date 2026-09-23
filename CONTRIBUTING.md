@@ -53,14 +53,14 @@ artifact is made from, and the commit it was measured at where it records one.
 
 ## Screenshots
 
-The README's images are the viewer's own page, drawn from two fixtures:
-`fixtures/python/fastapi` and `fixtures/go/cobra`, each with its
-`planisphere.json` generated. Playwright drives a headless Chromium, installed
-once:
+The README's images are the viewer's own page, drawn from three fixtures:
+`fixtures/python/fastapi`, `fixtures/go/cobra` and `fixtures/rust/ripgrep`, each
+with its `planisphere.json` generated. Playwright drives a headless Chromium,
+installed once:
 
 ```bash
 npx playwright-core install chromium
-npm run screenshots                  # writes docs/images/overview.jpg and focus.jpg
+npm run screenshots                  # writes overview.jpg, focus.jpg and reach.jpg
 ```
 
 Run it again when the drawing's look changes, and look at the images before
