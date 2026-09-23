@@ -30,7 +30,10 @@ of a product whose whole point is a picture.
   the first publish, since the listing loads the README's images from it, and
   the package goes to both the Visual Studio Marketplace and Open VSX.
 
-Not in this change: the mascot's artwork, and the viewer shortcomings the
+Also here: the mascot's picture, which the author made, beside the name it
+explains.
+
+Not in this change: the viewer shortcomings the
 screenshots surfaced — a Python type's docstring is not shown in the comment
 panel, Javadoc markup is shown raw, a heavily connected type's neighbours pile
 their labels on one another, and some drawings open framed on part of

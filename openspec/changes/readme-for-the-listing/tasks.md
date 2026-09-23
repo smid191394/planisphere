@@ -7,6 +7,8 @@
 - [x] 1.5 Add `npm run screenshots`, and check the images by eye: labels readable at 900 pixels wide, nothing cut off, the comment panel filled.
 - [x] 1.6 Right-click view: ripgrep's artifact, `SearcherBuilder` right-clicked, framed on what is left, into `docs/images/reach.jpg`.
 
+- [x] 1.7 Trim the mascot's picture, size it for the README, and put it in `docs/images/sirius.png`.
+
 ## 2. The README and what moves out of it
 
 - [x] 2.1 Rewrite `README.md` for a reader who installs: what it is, the overview image, the languages and what each needs installed, producing and opening a graph, the focus image, using it, and a link to `CONTRIBUTING.md`.

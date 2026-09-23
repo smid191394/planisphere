@@ -94,8 +94,11 @@ that you can see at a glance what is overhead. Planisphere does the same for a
 codebase: it flattens a tangle of modules and types into one drawing, laid over
 a starfield.
 
-Its mascot is a dog named Sirius, after the Dog Star, the brightest star on any
-planisphere.
+![Sirius](docs/images/sirius.png)
+
+This is Sirius, who keeps the place. Sirius is the brightest star on any
+planisphere, and the one every stargazer finds first — the Dog Star, in the
+constellation of the Great Dog.
 
 ## Contributing
 
