@@ -92,6 +92,13 @@ stargazer finds first.
 Building from source, running an analyzer by hand and the test suites are in
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## Credits
+
+The drawings on this page are of [FastAPI](https://github.com/fastapi/fastapi)
+(MIT), [cobra](https://github.com/spf13/cobra) (Apache-2.0) and
+[ripgrep](https://github.com/BurntSushi/ripgrep) (MIT). Their code and their
+names belong to their authors, and neither project is connected to this one.
+
 ## License
 
 [MIT](LICENSE)
