@@ -88,4 +88,7 @@ node -e 'require("sharp")("docs/images/sirius-source.png").trim({threshold:1}).r
 per directory. A change starts as a proposal under `openspec/changes/`, and its
 requirements are merged into the specs when it is archived.
 
+How to behave here is [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md); what to do with
+something that should not be public is [SECURITY.md](SECURITY.md).
+
 Before publishing, go through [docs/release-checklist.md](docs/release-checklist.md).
