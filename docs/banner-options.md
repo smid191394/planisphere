@@ -1,19 +1,32 @@
-# Two ways to set the name — pick one
+# Four ways to set the right-hand side — pick one
 
-Temporary: delete this file and both images once chosen.
+The mascot and the five language nodes are the same in all of them. Temporary:
+this file and the four images go once one is chosen.
 
-## B — Space Grotesk
+## 1 — Name and tagline
 
-Angular, technical. `a`, `e` and `r` are cut at an angle, which reads as
-engineering rather than as friendliness.
+What is there now, in Outfit, with the tagline quieter and a node opening it.
 
-![option B](images/option-b.jpg)
+![option 1](images/option-one.jpg)
 
-## C — Outfit
+## 2 — The viewer's own panel
 
-Geometric and round, the same shapes as the mascot's head and the nodes.
+The right side is the panel the viewer shows when a node is focused, holding
+what the product is instead of a comment. Everything in it is the panel's
+monospace, as the product draws it.
 
-![option C](images/option-c.jpg)
+![option 2](images/option-two.jpg)
 
-Both: the tagline is grey rather than pink, with a pink node opening it — the
-colour a drawing's centre carries.
+## 3 — Name, rule, and the file
+
+A rule in the centre's colour under the name, and below the tagline the file
+the drawing is: `planisphere.json`.
+
+![option 3](images/option-three.jpg)
+
+## 4 — Hung off a rail
+
+The words hang off a rail like the viewer's own, and under them the three edge
+kinds are named in the colours and dashes the drawing uses.
+
+![option 4](images/option-four.jpg)
