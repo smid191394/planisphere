@@ -1,17 +1,23 @@
-# How close the panel can come — pick one
+# Centred, and larger — pick one
 
-Both have the name at 62px and one line under it. Temporary: this file and its
-images go once one is chosen.
+The panel sits at the same place in all of them, as close to the drawing as the
+`TypeScript` label allows. Temporary: this file and its images go once one is
+chosen.
 
-## near — the drawing stays, the panel comes as close as the labels allow
+## mid — 62px, centred
 
-Any closer and the panel covers the end of `TypeScript`.
+![option mid](images/option-mid.jpg)
 
-![option near](images/option-near.jpg)
+## big — 76px, ranged left
 
-## shift — the drawing moves left too, so the two sit together
+![option big](images/option-big.jpg)
 
-More room between the pair and the right edge, and the mascot is nearer the
-corner.
+## bigmid — 76px, centred
 
-![option shift](images/option-shift.jpg)
+![option bigmid](images/option-bigmid.jpg)
+
+## huge — 86px, centred, the panel widened to take it
+
+The name is as large as the panel will hold without crowding its edges.
+
+![option huge](images/option-huge.jpg)
