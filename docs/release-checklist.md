@@ -52,5 +52,7 @@ images load from this repository on GitHub.
 - [ ] Published to the Visual Studio Marketplace with `vsce publish`, and to
       Open VSX, which Cursor installs from, with `ovsx publish`.
 - [ ] On both published pages the README's images show, and its links work.
-- [ ] The README's badge row carries the marketplace's own version and install
-      badges, which only exist once the extension is published.
+- [ ] The README's badge row gains the Open VSX version and download badges,
+      which say nothing until the extension is published. Shields' Visual
+      Studio Marketplace badges are retired, so that marketplace's version is
+      not shown from there.

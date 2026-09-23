@@ -2,9 +2,9 @@
 
 ![Planisphere](docs/images/banner.jpg)
 
-[![license: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![VS Code](https://img.shields.io/badge/VS%20Code-1.85%2B-blue)](https://code.visualstudio.com/)
-[![languages: 5](https://img.shields.io/badge/languages-Python%20%C2%B7%20TypeScript%20%C2%B7%20Go%20%C2%B7%20Rust%20%C2%B7%20Java-8957e5)](#what-each-language-needs)
+[![license: MIT](https://img.shields.io/badge/license-MIT-E91E63)](LICENSE)
+[![editors: VS Code | Cursor](https://img.shields.io/badge/editors-VS%20Code%20%7C%20Cursor-1E88E5)](#getting-started)
+[![languages: 5](https://img.shields.io/badge/languages-5-5C6BC0)](#what-each-language-needs)
 
 Planisphere draws the types of a project as a radial map, and a click on any of
 them takes you to its source.
