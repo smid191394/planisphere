@@ -60,7 +60,7 @@ once:
 
 ```bash
 npx playwright-core install chromium
-npm run screenshots                  # writes docs/images/overview.png and focus.png
+npm run screenshots                  # writes docs/images/overview.jpg and focus.jpg
 ```
 
 Run it again when the drawing's look changes, and look at both images before

@@ -2,8 +2,8 @@
 
 - [x] 1.1 Add `playwright-core` as a development dependency, and check that the package's file list is unchanged by it.
 - [x] 1.2 Write `scripts/screenshots.js`: build the viewer's page with `buildGraphWebviewHtml` and a stand-in host that sends settings and graph and answers `getComment` with `leadingComment`; load `graph.js` with the layout suite's insertion to reach `cy`.
-- [x] 1.3 Overview: FastAPI's artifact, framed on the group the graph starts from, with everything outside it hidden, captured as the drawing's element only, into `docs/images/overview.png`.
-- [x] 1.4 Focus: cobra's artifact, `Command` clicked at its rendered position, waiting for the comment panel, into `docs/images/focus.png`.
+- [x] 1.3 Overview: FastAPI's artifact, framed on the group the graph starts from, with everything outside it hidden, captured as the drawing's element only, into `docs/images/overview.jpg`.
+- [x] 1.4 Focus: cobra's artifact, `Command` clicked at its rendered position, waiting for the comment panel, into `docs/images/focus.jpg`.
 - [x] 1.5 Add `npm run screenshots`, and check both images by eye: labels readable at 900 pixels wide, nothing cut off, the comment panel filled.
 
 ## 2. The README and what moves out of it

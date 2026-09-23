@@ -84,12 +84,17 @@ that group — with functions hidden, types joined only through a function fall
 apart from it. The focused shot clicks `Command` at its rendered position,
 which is the gesture a reader makes.
 
-### Where the images live and how large they are
+### Where the images live, how large, and in which format
 
-`docs/images/overview.png` and `docs/images/focus.png`, rendered at 1600 by 1000
+`docs/images/overview.jpg` and `docs/images/focus.jpg`, rendered at 1600 by 1000
 CSS pixels. The marketplaces show a README about 900 pixels wide, so this is
-sharp at twice that density without the file growing past a couple of
-megabytes.
+sharp at nearly twice that density.
+
+JPEG at quality 88, not PNG. The drawing sits on a star field, a full page of
+noise that a lossless format records dot by dot: the same picture is 1.6 MB as
+a PNG and 340 KB as this JPEG. A PNG that size arrives slowly enough that the
+reader watches it paint from the top down, which is what the picture is there
+to avoid. Magnified, the loss shows only as a faint halo around white labels.
 
 ## Risks / Trade-offs
 

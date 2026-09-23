@@ -4,7 +4,7 @@ Read a codebase as one drawing. Planisphere draws the types of a **Python**,
 **TypeScript**, **Go**, **Rust** or **Java** project as a radial map, and a click
 on any of them takes you to its source.
 
-![FastAPI's types, drawn by Planisphere](docs/images/overview.png)
+![FastAPI's types, drawn by Planisphere](docs/images/overview.jpg)
 
 <sub>FastAPI, drawn from its own source. The red node is where the graph starts;
 solid lines are inheritance, dashed ones are uses.</sub>
@@ -42,7 +42,7 @@ missing, Planisphere says which, and what to install.
 
 ## Reading the drawing
 
-![cobra's Command, focused, with its comment and methods beside it](docs/images/focus.png)
+![cobra's Command, focused, with its comment and methods beside it](docs/images/focus.jpg)
 
 <sub>cobra's `Command`, clicked once: what it touches stays lit, and the panel
 shows the comment above it and its methods.</sub>

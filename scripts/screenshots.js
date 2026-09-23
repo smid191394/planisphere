@@ -27,13 +27,13 @@ const VIEWPORT = { width: 1600, height: 1000 };
 const SHOTS = [
   {
     // What Planisphere is: one framework's structure as a single drawing.
-    file: "overview.png",
+    file: "overview.jpg",
     artifact: "fixtures/python/fastapi/planisphere.json",
     frame: "primary-group",
   },
   {
     // What one click gives: the node's neighbours, its comment and its methods.
-    file: "focus.png",
+    file: "focus.jpg",
     artifact: "fixtures/go/cobra/planisphere.json",
     click: "Command",
   },
@@ -191,10 +191,13 @@ async function shoot(browser, host, shot) {
 
   const box = await pg.locator("#cy").boundingBox();
   fs.mkdirSync(OUT, { recursive: true });
-  await pg.screenshot({ path: path.join(OUT, shot.file), clip: box });
+  // JPEG, not PNG: the star field is a full page of noise, which a lossless
+  // format has to record dot by dot — the same picture is 1.6 MB as a PNG and
+  // 340 KB here, and a reader watches a PNG that size paint from the top down.
+  await pg.screenshot({ path: path.join(OUT, shot.file), clip: box, type: "jpeg", quality: 88 });
   await pg.close();
   fs.rmSync(dir, { recursive: true, force: true });
-  console.log(`wrote docs/images/${shot.file}`);
+  console.log(`wrote docs/images/${shot.file} (${Math.round(fs.statSync(path.join(OUT, shot.file)).size / 1024)} KB)`);
 }
 
 async function main() {
