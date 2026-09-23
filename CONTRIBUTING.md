@@ -73,6 +73,13 @@ the name, laid out in the same headless Chromium:
 npm run banner                       # writes docs/images/banner.jpg
 ```
 
+`docs/images/sirius.png` is the mascot as the banner uses him, cut from
+`docs/images/sirius-source.png`:
+
+```bash
+node -e 'require("sharp")("docs/images/sirius-source.png").trim({threshold:1}).resize({width:320}).png({palette:true}).toFile("docs/images/sirius.png")'
+```
+
 ## How the product is described
 
 [openspec/specs/](openspec/specs/) holds what the product does, one capability
