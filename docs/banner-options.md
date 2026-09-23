@@ -1,32 +1,17 @@
-# Four ways to set the right-hand side — pick one
+# The panel, with the name big and one line under it — pick one
 
-The mascot and the five language nodes are the same in all of them. Temporary:
-this file and the four images go once one is chosen.
+The two lines about the languages and about clicking are gone: the nodes on the
+left already name the languages. Temporary: this file and its images go once
+one is chosen.
 
-## 1 — Name and tagline
+## p1 — name at 54px, in Outfit
 
-What is there now, in Outfit, with the tagline quieter and a node opening it.
+![option p1](images/option-p1.jpg)
 
-![option 1](images/option-one.jpg)
+## p2 — the whole panel in its own monospace
 
-## 2 — The viewer's own panel
+![option p2](images/option-p2.jpg)
 
-The right side is the panel the viewer shows when a node is focused, holding
-what the product is instead of a comment. Everything in it is the panel's
-monospace, as the product draws it.
+## p3 — name at 62px, the line tucked under it
 
-![option 2](images/option-two.jpg)
-
-## 3 — Name, rule, and the file
-
-A rule in the centre's colour under the name, and below the tagline the file
-the drawing is: `planisphere.json`.
-
-![option 3](images/option-three.jpg)
-
-## 4 — Hung off a rail
-
-The words hang off a rail like the viewer's own, and under them the three edge
-kinds are named in the colours and dashes the drawing uses.
-
-![option 4](images/option-four.jpg)
+![option p3](images/option-p3.jpg)
