@@ -84,14 +84,25 @@ const html = (starfield, sirius, fonts) => `<!DOCTYPE html>
          with edges around it. */
       .words {
         position: absolute;
-        left: 590px;
-        top: 116px;
-        width: 530px;
+        left: 576px;
+        top: 112px;
+        width: 558px;
         text-align: center;
       }
-      .title { font-family: "Outfit", sans-serif; font-weight: 700; font-size: 76px; line-height: 1; letter-spacing: -0.5px; }
+      /* Sirius is a blue-white star, and the blue is the one the drawing gives
+         a class: white where the light is, its own colour below. */
+      .title {
+        font-family: "Outfit", sans-serif;
+        font-weight: 700;
+        font-size: 88px;
+        line-height: 1;
+        letter-spacing: -1px;
+        background: linear-gradient(180deg, #ffffff 35%, #90CAF9 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
       .says {
-        margin-top: 22px;
+        margin-top: 20px;
         font-family: "Outfit", sans-serif;
         font-size: 18px;
         letter-spacing: 4px;
