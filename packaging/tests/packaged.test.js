@@ -189,6 +189,18 @@ test("only images in media/ are shipped", () => {
   assert.deepStrictEqual(stray, [], `these should not be in the package: ${stray.join(", ")}`);
 });
 
+test("only the two dependencies the product runs on ship", () => {
+  // A development dependency's own optional packages sit at the top of
+  // node_modules beside the product's, where the packager takes them for
+  // something the extension runs on.
+  const dirs = new Set(
+    shipped()
+      .filter((f) => f.startsWith("node_modules/"))
+      .map((f) => f.split("/").slice(1, f.startsWith("node_modules/@") ? 3 : 2).join("/"))
+  );
+  assert.deepStrictEqual([...dirs].sort(), ["cytoscape", "typescript"], "only these two are the product's");
+});
+
 test("nothing shipped carries the old name", () => {
   // The product's former name, CodeScout, must not ship: it is taken in the
   // marketplace twice over. What a reader installs is where a leftover of

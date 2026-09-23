@@ -29,6 +29,13 @@ fixtures/**
 node_modules/**/test/**
 node_modules/**/tests/**
 
+# What the screenshots are made with. sharp is a development dependency, but its
+# optional wasm fallback and their shared runtime sit at the top of
+# node_modules, where the packager takes them for the product's own.
+node_modules/@img/**
+node_modules/@emnapi/**
+node_modules/tslib/**
+
 # The TypeScript analyzer parses with the compiler API, so the compiler ships —
 # but only the file `require("typescript")` loads. The other 130 are a command
 # line, a language server and typings that nothing here calls: 8.8 MB instead of
