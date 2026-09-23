@@ -10,6 +10,8 @@ packaging/**
 # The end-to-end suite and the release checklist test the package; neither is in it.
 e2e/**
 docs/release-checklist.md
+# The fonts the banner is set in: a picture of the product is not the product.
+docs/fonts/**
 # Build scripts: they make a package, and have no part in running one.
 scripts/**
 analyzers/**/tests/**

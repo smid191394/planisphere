@@ -201,6 +201,13 @@ test("only the two dependencies the product runs on ship", () => {
   assert.deepStrictEqual([...dirs].sort(), ["cytoscape", "typescript"], "only these two are the product's");
 });
 
+test("the only document that ships is the language reference", () => {
+  // What is written about the product for a reader of the repository — the
+  // release checklist, the fonts the banner is set in — is not part of it.
+  const docs = shipped().filter((f) => f.startsWith("docs/"));
+  assert.deepStrictEqual(docs, ["docs/languages.md"], `these should not ship: ${docs.join(", ")}`);
+});
+
 test("nothing shipped carries the old name", () => {
   // The product's former name, CodeScout, must not ship: it is taken in the
   // marketplace twice over. What a reader installs is where a leftover of

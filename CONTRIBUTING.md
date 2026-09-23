@@ -67,10 +67,9 @@ Run it again when the drawing's look changes, and look at the images before
 committing them.
 
 The banner at the top of the README is made from the mascot with the five
-languages ringed around it, and the name in the panel the viewer shows on a
-focused node, laid out in the same headless Chromium. Its two fonts are in
-`docs/fonts/` under the Open Font License, so the banner comes out the same
-wherever it is made:
+languages ringed around it, and the name beside it, laid out in the same
+headless Chromium. Its fonts are in `docs/fonts/` under the Open Font License,
+so the banner comes out the same wherever it is made:
 
 ```bash
 npm run banner                       # writes docs/images/banner.jpg

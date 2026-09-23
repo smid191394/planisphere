@@ -2,8 +2,7 @@
 "use strict";
 
 // The README's banner: the mascot with the five languages ringed around it, and
-// the name in the panel the viewer shows when a node is focused, over the star
-// field the viewer draws behind every graph.
+// the name beside it, over the star field the viewer draws behind every graph.
 //
 // The fonts are in docs/fonts, under the Open Font License, so that the banner
 // is the same wherever it is made.
@@ -81,31 +80,33 @@ const html = (starfield, sirius, fonts) => `<!DOCTYPE html>
       }
       .ring { position: absolute; left: 0; top: 0; }
       .mascot { position: absolute; left: 170px; top: 96px; width: 232px; filter: drop-shadow(0 0 46px rgba(255, 235, 59, 0.22)); }
-      /* The panel the viewer shows on a focused node, holding the name instead
-         of a comment. As close to the drawing as its labels allow. */
-      .panel {
+      /* Set where the panel stood, without its box: the drawing is the thing
+         with edges around it. */
+      .words {
         position: absolute;
         left: 590px;
-        top: 104px;
+        top: 116px;
         width: 530px;
-        padding: 22px 26px;
-        box-sizing: border-box;
         text-align: center;
-        background: rgba(13, 17, 23, 0.86);
-        border: 1px solid #2b3648;
-        border-radius: 10px;
       }
-      .title { font-family: "Outfit", sans-serif; font-weight: 700; font-size: 76px; line-height: 1; }
-      .says { margin-top: 12px; font-family: "Panel", monospace; font-size: 18px; line-height: 1.7; color: #aab6c8; }
+      .title { font-family: "Outfit", sans-serif; font-weight: 700; font-size: 76px; line-height: 1; letter-spacing: -0.5px; }
+      .says {
+        margin-top: 22px;
+        font-family: "Outfit", sans-serif;
+        font-size: 18px;
+        letter-spacing: 4px;
+        text-transform: uppercase;
+        color: #93a2b5;
+      }
     </style>
   </head>
   <body>
     <div class="veil"></div>
     ${ring(286, 210, 168)}
     <img class="mascot" src="${sirius}" alt="" />
-    <div class="panel">
+    <div class="words">
       <div class="title">Planisphere</div>
-      <div class="says">Read a codebase as one drawing.</div>
+      <div class="says">Read a codebase as one drawing</div>
     </div>
   </body>
 </html>`;
