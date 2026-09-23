@@ -1,6 +1,6 @@
 ## 1. Screenshots
 
-- [x] 1.1 Add `playwright-core` as a development dependency, and check that the package's file list is unchanged by it.
+- [x] 1.1 Add `playwright-core` and `sharp` as development dependencies, and check that the package's file list is unchanged by them.
 - [x] 1.2 Write `scripts/screenshots.js`: build the viewer's page with `buildGraphWebviewHtml` and a stand-in host that sends settings and graph and answers `getComment` with `leadingComment`; load `graph.js` with the layout suite's insertion to reach `cy`.
 - [x] 1.3 Overview: FastAPI's artifact, framed on the group the graph starts from, with everything outside it hidden, captured as the drawing's element only, into `docs/images/overview.jpg`.
 - [x] 1.4 Focus: cobra's artifact, `Command` clicked at its rendered position, waiting for the comment panel, into `docs/images/focus.jpg`.

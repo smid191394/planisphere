@@ -90,11 +90,20 @@ which is the gesture a reader makes.
 CSS pixels. The marketplaces show a README about 900 pixels wide, so this is
 sharp at nearly twice that density.
 
-JPEG at quality 88, not PNG. The drawing sits on a star field, a full page of
-noise that a lossless format records dot by dot: the same picture is 1.6 MB as
-a PNG and 340 KB as this JPEG. A PNG that size arrives slowly enough that the
-reader watches it paint from the top down, which is what the picture is there
-to avoid. Magnified, the loss shows only as a faint halo around white labels.
+Written out at 1200 wide as a progressive JPEG of quality 88, with `sharp`.
+
+Not PNG: the drawing sits on a star field, a full page of noise that a lossless
+format records dot by dot, and the overview is 1.6 MB that way against 150 KB
+here. Magnified, the loss shows only as a faint halo around white labels.
+
+Progressive, because the format decides what a reader watches while the file
+arrives. A PNG and a baseline JPEG are both painted from the top down, a band
+at a time; a progressive JPEG shows the whole picture at once and sharpens it.
+Chromium's own screenshot writes baseline JPEG only, which is why the picture
+is re-encoded rather than captured in its final form.
+
+Not WebP: it is no smaller here, and it shows nothing at all until it is
+decoded.
 
 ## Risks / Trade-offs
 

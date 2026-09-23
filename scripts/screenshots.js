@@ -19,10 +19,13 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const Module = require("node:module");
+const sharp = require("sharp");
 
 const ROOT = path.join(__dirname, "..");
 const OUT = path.join(ROOT, "docs", "images");
 const VIEWPORT = { width: 1600, height: 1000 };
+/** What the README is shown at is about 900 wide; this stays sharp above that. */
+const IMAGE_WIDTH = 1200;
 
 const SHOTS = [
   {
@@ -191,10 +194,17 @@ async function shoot(browser, host, shot) {
 
   const box = await pg.locator("#cy").boundingBox();
   fs.mkdirSync(OUT, { recursive: true });
-  // JPEG, not PNG: the star field is a full page of noise, which a lossless
-  // format has to record dot by dot — the same picture is 1.6 MB as a PNG and
-  // 340 KB here, and a reader watches a PNG that size paint from the top down.
-  await pg.screenshot({ path: path.join(OUT, shot.file), clip: box, type: "jpeg", quality: 88 });
+  const shot0 = await pg.screenshot({ clip: box, type: "png" });
+
+  // Progressive JPEG, not PNG: the star field is a full page of noise, which a
+  // lossless format records dot by dot — the same picture is 1.6 MB as a PNG
+  // and 150 KB here. Progressive because of how the rest arrives: a baseline
+  // JPEG, like a PNG, is painted from the top down as it downloads, while a
+  // progressive one shows the whole picture at once and sharpens.
+  await sharp(shot0)
+    .resize({ width: IMAGE_WIDTH })
+    .jpeg({ quality: 88, progressive: true, mozjpeg: true })
+    .toFile(path.join(OUT, shot.file));
   await pg.close();
   fs.rmSync(dir, { recursive: true, force: true });
   console.log(`wrote docs/images/${shot.file} (${Math.round(fs.statSync(path.join(OUT, shot.file)).size / 1024)} KB)`);
