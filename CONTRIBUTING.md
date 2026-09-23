@@ -67,8 +67,8 @@ Run it again when the drawing's look changes, and look at the images before
 committing them.
 
 The banner at the top of the README is made from the mascot, the star field,
-the name, and Canis Major — the constellation Sirius is the brightest star of —
-drawn in the viewer's own marks and laid out in the same headless Chromium:
+the name, and the five languages hung off the mascot as nodes, drawn in the
+viewer's own marks and laid out in the same headless Chromium:
 
 ```bash
 npm run banner                       # writes docs/images/banner.jpg

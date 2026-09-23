@@ -23,68 +23,33 @@ const ROOT = path.join(__dirname, "..");
 const OUT = path.join(ROOT, "docs", "images", "banner.jpg");
 const SIZE = { width: 1200, height: 420 };
 
-/** Canis Major, by right ascension (hours), declination (degrees) and magnitude. */
-const STARS = {
-  sirius: { ra: 6.752, dec: -16.716, mag: -1.46 },
-  mirzam: { ra: 6.378, dec: -17.956, mag: 1.98 },
-  muliphein: { ra: 7.064, dec: -15.633, mag: 4.11 },
-  wezen: { ra: 7.14, dec: -26.393, mag: 1.83 },
-  adhara: { ra: 6.977, dec: -28.972, mag: 1.5 },
-  furud: { ra: 6.339, dec: -30.063, mag: 3.02 },
-  aludra: { ra: 7.401, dec: -29.303, mag: 2.45 },
-  theta: { ra: 6.907, dec: -12.038, mag: 4.08 },
-  omicron2: { ra: 7.048, dec: -23.833, mag: 3.02 },
-  sigma: { ra: 7.028, dec: -27.934, mag: 3.47 },
-};
-/** The figure the constellation is drawn as. */
-const LINES = [
-  ["mirzam", "sirius"], ["sirius", "theta"], ["sirius", "muliphein"],
-  ["sirius", "omicron2"], ["omicron2", "wezen"], ["wezen", "aludra"],
-  ["wezen", "sigma"], ["sigma", "adhara"], ["adhara", "furud"], ["furud", "mirzam"],
+/** What the mascot has hanging off it, in the colours the drawing gives them. */
+const LANGUAGES = [
+  { name: "Python", colour: "#1E88E5", degrees: -50 },
+  { name: "TypeScript", colour: "#00BCD4", degrees: -25 },
+  { name: "Go", colour: "#C0CA33", degrees: 0 },
+  { name: "Rust", colour: "#7E57C2", degrees: 25 },
+  { name: "Java", colour: "#FB8C00", degrees: 50 },
 ];
 
-/** The constellation as an SVG, at the shape the sky gives it. */
-function constellation(w, h) {
-  const ras = Object.values(STARS).map((s) => s.ra);
-  const decs = Object.values(STARS).map((s) => s.dec);
-  const [ra0, ra1] = [Math.min(...ras), Math.max(...ras)];
-  const [d0, d1] = [Math.min(...decs), Math.max(...decs)];
-  // An hour of right ascension is fifteen degrees, so both axes are degrees and
-  // one scale serves them both: stretching either would be another figure.
-  const spanX = (ra1 - ra0) * 15;
-  const spanY = d1 - d0;
-  const pad = 40;
-  const k = Math.min((w - 2 * pad) / spanX, (h - 2 * pad) / spanY);
-  const offX = (w - spanX * k) / 2;
-  const offY = (h - spanY * k) / 2;
-  // Right ascension grows eastward, which is leftward on a chart of the sky.
-  const at = (s) => ({ x: offX + (ra1 - s.ra) * 15 * k, y: offY + (d1 - s.dec) * k });
-  const radius = (s) => (s.mag < 0 ? 12 : s.mag < 2 ? 6.5 : s.mag < 3.2 ? 5 : 3.5);
-
-  const edges = LINES.map(([a, b]) => {
-    const p = at(STARS[a]);
-    const q = at(STARS[b]);
-    return `<line x1="${p.x.toFixed(1)}" y1="${p.y.toFixed(1)}" x2="${q.x.toFixed(1)}" y2="${q.y.toFixed(1)}"
-      stroke="#80CBC4" stroke-width="1.2" stroke-dasharray="6 4" opacity="0.55" />`;
+/**
+ * The languages as nodes hung off the mascot, drawn as the viewer draws a node
+ * and the dashed line that reaches it — the mascot standing where the centre of
+ * a drawing stands.
+ */
+function fan(cx, cy, reach) {
+  const marks = LANGUAGES.map(({ name, colour, degrees }) => {
+    const a = (degrees * Math.PI) / 180;
+    const x = cx + Math.cos(a) * reach;
+    const y = cy + Math.sin(a) * reach;
+    return `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"
+        stroke="${colour}" stroke-width="1.4" stroke-dasharray="6 4" opacity="0.55" />
+      <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9" fill="${colour}"
+        stroke="#ffffff" stroke-opacity="0.5" stroke-width="1.5" />
+      <text x="${(x + 18).toFixed(1)}" y="${(y + 6).toFixed(1)}" fill="#dbe3ee"
+        font-family="DejaVu Sans, sans-serif" font-size="19">${name}</text>`;
   }).join("\n");
-  const nodes = Object.entries(STARS).map(([name, s]) => {
-    const p = at(s);
-    const brightest = name === "sirius";
-    return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${radius(s)}"
-      fill="${brightest ? "#E91E63" : s.mag < 2.5 ? "#1E88E5" : "#5C6BC0"}"
-      stroke="${brightest ? "#FF80AB" : "#90CAF9"}" stroke-width="1.5"${brightest ? ' filter="url(#glow)"' : ""} />`;
-  }).join("\n");
-  const sirius = at(STARS.sirius);
-  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
-    <defs><filter id="glow" x="-120%" y="-120%" width="340%" height="340%">
-      <feGaussianBlur stdDeviation="7" result="blur" />
-      <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-    </filter></defs>
-    ${edges}
-    ${nodes}
-    <text x="${(sirius.x + 19).toFixed(1)}" y="${(sirius.y + 5).toFixed(1)}" fill="#ffffff"
-      font-family="DejaVu Sans, sans-serif" font-size="16" letter-spacing="1" opacity="0.9">Sirius</text>
-  </svg>`;
+  return `<svg class="fan" width="${SIZE.width}" height="${SIZE.height}" xmlns="http://www.w3.org/2000/svg">${marks}</svg>`;
 }
 
 const html = (starfield, sirius) => `<!DOCTYPE html>
@@ -96,45 +61,32 @@ const html = (starfield, sirius) => `<!DOCTYPE html>
       body {
         width: ${SIZE.width}px;
         height: ${SIZE.height}px;
-        display: flex;
-        align-items: center;
-        gap: 56px;
-        padding: 0 72px;
-        box-sizing: border-box;
         background: #05070d url("${starfield}") center / cover;
-        position: relative;
         font-family: "DejaVu Sans", system-ui, sans-serif;
         color: #ffffff;
+        position: relative;
         overflow: hidden;
       }
-      /* The drawing's own background is darkest where its labels sit. */
-      body::before {
-        content: "";
+      /* The drawing's background is darkest where its labels sit. */
+      .veil {
         position: absolute;
         inset: 0;
-        background: linear-gradient(90deg, rgba(5, 7, 13, 0.82) 0%, rgba(5, 7, 13, 0.62) 45%, rgba(5, 7, 13, 0.35) 100%);
+        background: linear-gradient(90deg, rgba(5, 7, 13, 0.8) 0%, rgba(5, 7, 13, 0.5) 55%, rgba(5, 7, 13, 0.3) 100%);
       }
-      .mascot, .words { position: relative; }
-      .sky { position: absolute; right: 56px; top: 26px; }
-      .mascot { width: 268px; filter: drop-shadow(0 0 40px rgba(255, 235, 59, 0.18)); }
-      .name { font-size: 78px; font-weight: bold; letter-spacing: 1px; line-height: 1; }
-      .line {
-        margin-top: 18px;
-        font-size: 26px;
-        color: #E91E63;
-        letter-spacing: 3px;
-        text-transform: uppercase;
-      }
-      .languages { margin-top: 22px; font-size: 21px; color: #b8c2d0; letter-spacing: 1px; }
+      .fan { position: absolute; left: 0; top: 0; }
+      .mascot { position: absolute; left: 104px; top: 86px; width: 256px; filter: drop-shadow(0 0 46px rgba(255, 235, 59, 0.22)); }
+      .words { position: absolute; left: 664px; top: 132px; }
+      .name { font-size: 66px; font-weight: bold; letter-spacing: 1px; line-height: 1; }
+      .line { margin-top: 16px; font-size: 20px; color: #E91E63; letter-spacing: 3px; text-transform: uppercase; }
     </style>
   </head>
   <body>
-    <div class="sky">${constellation(330, 368)}</div>
+    <div class="veil"></div>
+    ${fan(232, 210, 232)}
     <img class="mascot" src="${sirius}" alt="" />
     <div class="words">
       <div class="name">Planisphere</div>
       <div class="line">Read a codebase as one drawing</div>
-      <div class="languages">Python &nbsp;·&nbsp; TypeScript &nbsp;·&nbsp; Go &nbsp;·&nbsp; Rust &nbsp;·&nbsp; Java</div>
     </div>
   </body>
 </html>`;
