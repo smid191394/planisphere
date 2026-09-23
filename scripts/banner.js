@@ -69,7 +69,11 @@ const html = (starfield, sirius) => `<!DOCTYPE html>
 </html>`;
 
 async function main() {
-  const sirius = path.join(ROOT, "docs", "images", "sirius.png");
+  // A mascot and a destination may be given, to try another picture without
+  // replacing the one the README carries.
+  const [mascotArg, outArg] = process.argv.slice(2);
+  const sirius = mascotArg ? path.resolve(mascotArg) : path.join(ROOT, "docs", "images", "sirius.png");
+  const out = outArg ? path.resolve(outArg) : OUT;
   const starfield = path.join(ROOT, "media", "starfield.jpg");
   for (const f of [sirius, starfield]) {
     if (!fs.existsSync(f)) throw new Error(`${f} is missing`);
@@ -85,12 +89,12 @@ async function main() {
     await pg.goto("file://" + page);
     await pg.waitForLoadState("networkidle");
     const shot = await pg.screenshot({ type: "png" });
-    await sharp(shot).jpeg({ quality: 88, progressive: true, mozjpeg: true }).toFile(OUT);
+    await sharp(shot).jpeg({ quality: 88, progressive: true, mozjpeg: true }).toFile(out);
   } finally {
     await browser.close();
     fs.rmSync(dir, { recursive: true, force: true });
   }
-  console.log(`wrote docs/images/banner.jpg (${Math.round(fs.statSync(OUT).size / 1024)} KB)`);
+  console.log(`wrote ${path.relative(ROOT, out)} (${Math.round(fs.statSync(out).size / 1024)} KB)`);
 }
 
 main().catch((e) => {
