@@ -5,7 +5,6 @@
 <p align="center">
   <a href="LICENSE"><img alt="license: MIT" src="https://img.shields.io/badge/license-MIT-green" /></a>
   <a href="https://code.visualstudio.com/"><img alt="VS Code 1.85+" src="https://img.shields.io/badge/VS%20Code-1.85%2B-blue" /></a>
-  <a href="#what-each-language-needs"><img alt="languages: Python, TypeScript, Go, Rust, Java" src="https://img.shields.io/badge/languages-Python%20%C2%B7%20TypeScript%20%C2%B7%20Go%20%C2%B7%20Rust%20%C2%B7%20Java-8957e5" /></a>
 </p>
 
 Planisphere draws the types of a project as a radial map, and a click on any of

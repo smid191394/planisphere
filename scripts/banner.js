@@ -34,8 +34,8 @@ const LANGUAGES = [
 
 /**
  * The languages as a ring of nodes around the mascot, drawn as the viewer draws
- * a node, the ring a layout puts one on, and the dashed line that reaches it —
- * the mascot standing where the centre of a drawing stands.
+ * a node and the dashed line that reaches it — the mascot standing where the
+ * centre of a drawing stands.
  */
 function ring(cx, cy, radius) {
   const marks = LANGUAGES.map(({ name, colour }, i) => {
@@ -53,7 +53,6 @@ function ring(cx, cy, radius) {
         text-anchor="${outward ? "start" : "end"}" font-family="DejaVu Sans, sans-serif" font-size="19">${name}</text>`;
   }).join("\n");
   return `<svg class="ring" width="${SIZE.width}" height="${SIZE.height}" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="${cx}" cy="${cy}" r="${radius}" fill="none" stroke="#33415a" stroke-width="1" opacity="0.7" />
     ${marks}
   </svg>`;
 }
