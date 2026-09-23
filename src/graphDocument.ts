@@ -115,7 +115,7 @@ export function buildGraphWebviewHtml(
          cy.nodes() / cy.edges(), where fitting, searching and emphasis would
          all have to learn to exclude them. -->
     <canvas id="space" data-starfield="${starfieldUri}"></canvas>
-    <div id="empty" class="hidden">No Python symbols found in this graph.</div>
+    <div id="empty" class="hidden">This drawing has nothing in it.</div>
     <div id="error" class="hidden"></div>
     <!-- The right button's view: which node it is, how much of the drawing it
          kept, and the way back. The count is what makes a nearly empty screen

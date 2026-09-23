@@ -214,6 +214,18 @@ test("the documents that ship are the reader's, not the project's", () => {
   assert.deepStrictEqual(project, [], `these should not ship: ${project.join(", ")}`);
 });
 
+test("the sample project ships, as source", () => {
+  // A reader with nothing of their own to draw is offered this, and it is
+  // drawn on their machine rather than shipped already drawn: an artifact
+  // records absolute paths, and one made here names files they do not have.
+  const sample = shipped().filter((f) => f.startsWith("sample/"));
+  assert.ok(sample.length >= 4, `the sample should ship: ${sample.join(", ")}`);
+  assert.ok(
+    sample.every((f) => f.endsWith(".ts")),
+    `the sample ships as source only: ${sample.join(", ")}`
+  );
+});
+
 test("nothing shipped carries the old name", () => {
   // The product's former name, CodeScout, must not ship: it is taken in the
   // marketplace twice over. What a reader installs is where a leftover of

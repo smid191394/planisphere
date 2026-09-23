@@ -1,13 +1,22 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { STRUCTURE_GRAPH_VIEW_TYPE } from "./paths";
+import { ARTIFACT_NAME, STRUCTURE_GRAPH_VIEW_TYPE } from "./paths";
 import { StructureGraphEditorProvider } from "./structureGraphEditor";
 import { chooseOne, detectLanguages, runAnalyzer, Language } from "./analysis";
+import { drawSample, prepareSample } from "./sample";
 
-/** What the CLI names an artifact, so that both doors write the same file. */
-const ARTIFACT_NAME = "planisphere.json";
+/**
+ * What the extension hands back to whoever activated it.
+ *
+ * The offer of the sample is a button on a message, not a command, so there is
+ * no command for a test to run. This is how the end-to-end suite reaches it,
+ * and it is why the sample stays out of the command palette.
+ */
+export interface Api {
+  drawSample(): Promise<{ artifact: string } | { problem: string }>;
+}
 
-export function activate(context: vscode.ExtensionContext): void {
+export function activate(context: vscode.ExtensionContext): Api {
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(
       STRUCTURE_GRAPH_VIEW_TYPE,
@@ -21,6 +30,7 @@ export function activate(context: vscode.ExtensionContext): void {
       analyze(context, target)
     )
   );
+  return { drawSample: () => drawSample(context) };
 }
 
 export function deactivate(): void {
@@ -47,7 +57,7 @@ export type Outcome = { artifact: string; ran: string } | { problem: string } | 
 async function analyze(context: vscode.ExtensionContext, target?: vscode.Uri): Promise<Outcome> {
   if (!target && !(vscode.workspace.workspaceFolders ?? []).length) {
     const problem = "Planisphere: open a folder first.";
-    void vscode.window.showWarningMessage(problem);
+    offer(context, problem);
     return { problem };
   }
   const folder = await pickFolder(target);
@@ -56,7 +66,7 @@ async function analyze(context: vscode.ExtensionContext, target?: vscode.Uri): P
   const found = detectLanguages(folder.fsPath);
   if (found.length === 0) {
     const problem = `Planisphere found no analyzable source under ${path.basename(folder.fsPath)}.`;
-    void vscode.window.showWarningMessage(problem);
+    offer(context, problem);
     return { problem };
   }
   const language = chooseOne(found) ?? (await pickLanguage(found));
@@ -105,6 +115,33 @@ async function analyze(context: vscode.ExtensionContext, target?: vscode.Uri): P
     STRUCTURE_GRAPH_VIEW_TYPE
   );
   return { artifact: output, ran };
+}
+
+/** What the offer on those messages says. */
+const SEE_THE_SAMPLE = "See a sample drawing";
+
+/**
+ * Say what stopped the command, and offer the sample.
+ *
+ * Both of these are where a reader who has just installed this meets it: no
+ * folder open, or a project in a language it does not read. The sample needs
+ * nothing installed, so the offer holds for either of them.
+ *
+ * Not awaited. A message carrying a button stays until it is answered or
+ * dismissed, and the command has already finished: what it did is decided, and
+ * a caller waiting on it — the end-to-end suite among them — should not wait
+ * for a reader to make up their mind.
+ */
+function offer(context: vscode.ExtensionContext, problem: string): void {
+  // Begun here, while the message is being read, so that answering it opens a
+  // drawing rather than starting one. A rejection is held until it is pressed:
+  // a reader who never presses is not told about work they did not ask for.
+  const begun = prepareSample(context);
+  begun.catch(() => undefined);
+  void vscode.window.showWarningMessage(problem, SEE_THE_SAMPLE).then((chose) => {
+    if (chose === SEE_THE_SAMPLE) return drawSample(context, begun);
+    return undefined;
+  });
 }
 
 /** The folder to read: the one clicked, the only one open, or the one chosen. */

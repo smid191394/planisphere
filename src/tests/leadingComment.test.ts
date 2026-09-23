@@ -35,9 +35,89 @@ test("a comment at the end of the definition line does not count as above it", (
   assert.deepStrictEqual(above(file, 1), []);
 });
 
-test("a docstring is not a comment", () => {
-  const file = ["class Thing:", '    """說明"""'];
+// ---------------------------------------------------------------------------
+// What opens the definition, where nothing is written above it.
+
+test("a quoted block opening the definition is shown without its markers", () => {
+  const file = ["class Thing:", '    """What it is for."""'];
+  assert.deepStrictEqual(above(file, 1), ["What it is for."]);
+});
+
+test("a quoted block of several lines keeps its own shape", () => {
+  const file = [
+    "class Thing:",
+    '    """What it is for.',
+    "",
+    "    And what it is not for:",
+    "      - one",
+    '    """',
+  ];
+  assert.deepStrictEqual(above(file, 1), [
+    "What it is for.",
+    "",
+    "And what it is not for:",
+    "  - one",
+  ]);
+});
+
+test("what is written above the definition wins over what opens it", () => {
+  const file = ["# The comment above.", "class Thing:", '    """The block below."""'];
+  assert.deepStrictEqual(above(file, 2), ["The comment above."]);
+});
+
+test("single quotes open a block as well", () => {
+  const file = ["def f():", "    '''What it does.'''"];
+  assert.deepStrictEqual(above(file, 1), ["What it does."]);
+});
+
+test("a quoted block that does not open the definition is not shown", () => {
+  const file = ["def f():", "    total = 0", '    """Not the definition’s."""'];
   assert.deepStrictEqual(above(file, 1), []);
+});
+
+test("a string assigned below the definition is not a block that opens it", () => {
+  const file = ["class Thing:", '    name = "Thing"'];
+  assert.deepStrictEqual(above(file, 1), []);
+});
+
+test("nothing below the definition at all", () => {
+  const file = ["class Thing:"];
+  assert.deepStrictEqual(above(file, 1), []);
+});
+
+// ---------------------------------------------------------------------------
+// What documentation is marked up with, which a reader of a drawing is not
+// reading the markup of.
+
+test("a braced tag is shown as what it names", () => {
+  const file = ["// Reads into a {@link JsonNode}.", "class ObjectMapper {}"];
+  assert.deepStrictEqual(above(file, 2), ["Reads into a JsonNode."]);
+});
+
+test("a braced tag with no text is dropped", () => {
+  const file = ["// Nothing follows it {@inheritDoc}", "class Thing {}"];
+  assert.deepStrictEqual(above(file, 2), ["Nothing follows it"]);
+});
+
+test("paragraph markup is dropped and the lines are kept", () => {
+  const file = [
+    "/**",
+    " * The first paragraph.",
+    " * <p>",
+    " * The second, with <code>code</code> in it.",
+    " */",
+    "class Thing {}",
+  ];
+  assert.deepStrictEqual(above(file, 6), [
+    "The first paragraph.",
+    "",
+    "The second, with code in it.",
+  ]);
+});
+
+test("a generic type is not markup", () => {
+  const file = ["// Holds a List<String>, not a tag.", "class Thing {}"];
+  assert.deepStrictEqual(above(file, 2), ["Holds a List<String>, not a tag."]);
 });
 
 test("a line number past the end of the file does not throw", () => {

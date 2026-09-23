@@ -127,6 +127,22 @@ const SCENARIOS = {
       await produced(outcome, dir, ".go");
       check(outcome.ran === shippedGo(), `ran ${outcome.ran}, not ${shippedGo()}`);
     },
+    "the offer draws a sample, and its nodes are where it says": async () => {
+      // The offer a reader meets when the command can do nothing. It is a
+      // button on a message, which nothing here can press, so this calls what
+      // the button calls.
+      const ext = installed();
+      const api = await ext.activate();
+      const outcome = await api.drawSample();
+      check(outcome && outcome.artifact, `drawing the sample returned ${JSON.stringify(outcome)}`);
+      const doc = JSON.parse(fs.readFileSync(outcome.artifact, "utf8"));
+      const telescope = doc.nodes.find((n) => n.name === "Telescope");
+      check(telescope, `no Telescope in ${JSON.stringify(doc.nodes.map((n) => n.name))}`);
+      // The point of drawing it here rather than shipping it drawn: the paths
+      // are this machine's, so activating a node twice opens a file.
+      check(fs.existsSync(telescope.file), `${telescope.file} is not on this machine`);
+      await graphOpen(outcome.artifact);
+    },
     "rust with no cargo says what to install": async () => {
       const dir = project(RS);
       refused(await analyze(dir), dir, /cargo[\s\S]*rustup/);

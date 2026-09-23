@@ -100,7 +100,87 @@ export function leadingComment(lines: string[], line: number): string[] {
     break;
   }
 
-  return found.reverse();
+  if (found.length) {
+    return found.reverse().map(withoutMarkup);
+  }
+
+  // Nothing above it. A whole language writes what a class is for as the first
+  // thing inside it instead — of FastAPI's 116 types, 2 carry a comment above
+  // the definition — and reading that stays positional: the run below the
+  // definition line, not a language named by a path this is never handed.
+  return openingBlock(lines, line).map(withoutMarkup);
+}
+
+/**
+ * The quoted block that opens a definition, markers removed.
+ *
+ * The first line below the definition decides it: a block begins there or
+ * nowhere. A body that begins with code and quotes something later is not the
+ * definition's — it is a string in the middle of it, and showing it would be
+ * showing something that is not what was written about the definition.
+ */
+function openingBlock(lines: string[], line: number): string[] {
+  const first = lines[line];
+  if (first === undefined) {
+    return [];
+  }
+  const opened = first.trim();
+  const marker = opened.startsWith('"""') ? '"""' : opened.startsWith("'''") ? "'''" : null;
+  if (marker === null) {
+    return [];
+  }
+
+  // The block's own indentation, so that what is inside it keeps the shape it
+  // was written with while the block as a whole is brought to the margin.
+  const indent = first.length - first.trimStart().length;
+  const undent = (text: string): string =>
+    text.slice(0, indent).trim() === "" ? text.slice(indent) : text.trim();
+
+  const body = opened.slice(marker.length);
+  // Opened and closed on one line.
+  if (body.trimEnd().endsWith(marker) && body.trim() !== marker) {
+    return [body.trimEnd().slice(0, -marker.length).trim()];
+  }
+  if (body.trim() === marker) {
+    return [];
+  }
+
+  const collected = body.trim() === "" ? [] : [body.trim()];
+  for (let i = line + 1; i < lines.length; i++) {
+    const text = lines[i];
+    const closes = text.trimEnd().endsWith(marker);
+    const without = closes ? text.trimEnd().slice(0, -marker.length) : text;
+    if (without.trim() !== "" || !closes) {
+      collected.push(undent(without).trimEnd());
+    }
+    if (closes) {
+      return collected;
+    }
+  }
+  // Never closed: the run is not a block, and guessing where it ends is the
+  // cleverness this rule declines.
+  return [];
+}
+
+/**
+ * The text without the markup a documentation generator reads.
+ *
+ * A braced tag such as `{@link Thing}` is shown as `Thing`, and the handful of
+ * tags a paragraph is marked up with are dropped: jackson-databind's
+ * `ObjectMapper` carries eleven of them, and a reader looking at a drawing is
+ * not reading the markup. Anything else in angle brackets is left alone —
+ * `List<String>` is what a writer wrote, not a tag.
+ *
+ * The line is what it was: markup is removed from it, never reflowed into it.
+ */
+const PARAGRAPH_TAGS = /<\/?(?:p|br|hr|code|pre|tt|em|strong|b|i|u|ul|ol|li|dl|dt|dd|blockquote|h[1-6]|a)(?:\s[^<>]*)?\/?>/gi;
+
+function withoutMarkup(text: string): string {
+  return text
+    .replace(/\{@\w+\s+([^{}]*)\}/g, "$1")
+    .replace(/\s*\{@\w+\}/g, "")
+    .replace(PARAGRAPH_TAGS, "")
+    .replace(/[ \t]+$/, "");
 }
 
 function isDecorator(text: string): boolean {

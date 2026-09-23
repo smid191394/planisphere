@@ -52,6 +52,9 @@ node_modules/typescript/**
 !node_modules/typescript/package.json
 !node_modules/typescript/lib/typescript.js
 **/*.ts
+# Except the sample project a reader is offered when they have nothing of their
+# own to draw. It is the only code in the package that is not the product.
+!sample/**
 **/*.map
 **/*.vsix
 # Images ship only from media/, where the viewer and the listing load them: a
