@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 "use strict";
 
-// The README's banner: the mascot, the name, and the constellation the mascot
-// is named after, over the star field the viewer draws behind every graph.
+// The README's banner: the mascot with the five languages ringed around it, and
+// the name in the panel the viewer shows when a node is focused, over the star
+// field the viewer draws behind every graph.
 //
-// Canis Major is drawn the way the viewer draws a graph — nodes joined by the
-// dashed line it uses for a reference — with Sirius the brightest of them, as
-// it is in the sky and as the centre of a drawing is.
+// The fonts are in docs/fonts, under the Open Font License, so that the banner
+// is the same wherever it is made.
 //
 //   node scripts/banner.js
 //
@@ -57,17 +57,18 @@ function ring(cx, cy, radius) {
   </svg>`;
 }
 
-const html = (starfield, sirius) => `<!DOCTYPE html>
+const html = (starfield, sirius, fonts) => `<!DOCTYPE html>
 <html>
   <head>
     <meta charset="utf-8" />
     <style>
+      @font-face { font-family: "Outfit"; src: url("${fonts}/Outfit.ttf"); font-weight: 400 800; }
+      @font-face { font-family: "Panel"; src: url("${fonts}/JetBrainsMono.ttf"); font-weight: 400 800; }
       html, body { margin: 0; padding: 0; }
       body {
         width: ${SIZE.width}px;
         height: ${SIZE.height}px;
         background: #05070d url("${starfield}") center / cover;
-        font-family: "DejaVu Sans", system-ui, sans-serif;
         color: #ffffff;
         position: relative;
         overflow: hidden;
@@ -80,18 +81,31 @@ const html = (starfield, sirius) => `<!DOCTYPE html>
       }
       .ring { position: absolute; left: 0; top: 0; }
       .mascot { position: absolute; left: 170px; top: 96px; width: 232px; filter: drop-shadow(0 0 46px rgba(255, 235, 59, 0.22)); }
-      .words { position: absolute; left: 700px; top: 130px; }
-      .name { font-size: 66px; font-weight: bold; letter-spacing: 1px; line-height: 1; }
-      .line { margin-top: 16px; font-size: 20px; color: #E91E63; letter-spacing: 3px; text-transform: uppercase; }
+      /* The panel the viewer shows on a focused node, holding the name instead
+         of a comment. As close to the drawing as its labels allow. */
+      .panel {
+        position: absolute;
+        left: 590px;
+        top: 104px;
+        width: 530px;
+        padding: 22px 26px;
+        box-sizing: border-box;
+        text-align: center;
+        background: rgba(13, 17, 23, 0.86);
+        border: 1px solid #2b3648;
+        border-radius: 10px;
+      }
+      .title { font-family: "Outfit", sans-serif; font-weight: 700; font-size: 76px; line-height: 1; }
+      .says { margin-top: 12px; font-family: "Panel", monospace; font-size: 18px; line-height: 1.7; color: #aab6c8; }
     </style>
   </head>
   <body>
     <div class="veil"></div>
     ${ring(286, 210, 168)}
     <img class="mascot" src="${sirius}" alt="" />
-    <div class="words">
-      <div class="name">Planisphere</div>
-      <div class="line">Read a codebase as one drawing</div>
+    <div class="panel">
+      <div class="title">Planisphere</div>
+      <div class="says">Read a codebase as one drawing.</div>
     </div>
   </body>
 </html>`;
@@ -103,12 +117,12 @@ async function main() {
   const sirius = mascotArg ? path.resolve(mascotArg) : path.join(ROOT, "docs", "images", "sirius.png");
   const out = outArg ? path.resolve(outArg) : OUT;
   const starfield = path.join(ROOT, "media", "starfield.jpg");
-  for (const f of [sirius, starfield]) {
+  for (const f of [sirius, starfield, path.join(ROOT, "docs", "fonts", "Outfit.ttf")]) {
     if (!fs.existsSync(f)) throw new Error(`${f} is missing`);
   }
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "planisphere-banner-"));
   const page = path.join(dir, "banner.html");
-  fs.writeFileSync(page, html("file://" + starfield, "file://" + sirius));
+  fs.writeFileSync(page, html("file://" + starfield, "file://" + sirius, "file://" + path.join(ROOT, "docs", "fonts")));
 
   const { chromium } = require("playwright-core");
   const browser = await chromium.launch();
