@@ -11,14 +11,16 @@ of a product whose whole point is a picture.
 
 ## What Changes
 
-- **Two screenshots at the top of the README**, made from the fixture corpus:
+- **Three screenshots in the README**, made from the fixture corpus:
   - FastAPI's whole drawing as it opens, cropped to the main tree: what
     Planisphere is.
   - cobra's `Command` focused: its neighbours lit, the rest dimmed, and the
     panel showing its doc comment and its methods: what one click gives.
+  - gin's `Engine` right-clicked: everything else put away, and what it points
+    to two steps out drawn around it.
 - **A script that makes the screenshots again**, so they follow the viewer when
   its look changes rather than going stale.
-- **The README rewritten for a reader who installs**: what it is, the two
+- **The README rewritten for a reader who installs**: what it is, the
   pictures, which languages it reads and what each needs installed, how to
   produce and open a graph, and how to use it. Building from source, running
   the analyzers by hand, and the test suites move to `CONTRIBUTING.md`, linked

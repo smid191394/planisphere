@@ -40,6 +40,12 @@ const SHOTS = [
     artifact: "fixtures/go/cobra/planisphere.json",
     click: "Command",
   },
+  {
+    // What the right button gives: only what the node points to, two steps out.
+    file: "reach.jpg",
+    artifact: "fixtures/go/gin/planisphere.json",
+    rightClick: "Engine",
+  },
 ];
 
 /** The compiled host modules, loaded with a stand-in for the `vscode` module. */
@@ -157,6 +163,28 @@ async function shoot(browser, host, shot) {
       cy.fit(cy.nodes(":visible"), 40);
     });
     await pg.waitForTimeout(800);
+  }
+
+  if (shot.rightClick) {
+    const at = await pg.evaluate((name) => {
+      const cy = window.__cy();
+      const node = cy
+        .nodes(":visible")
+        .filter((n) => n.data("label") === name || String(n.data("label")).endsWith("/" + name))[0];
+      if (!node) return null;
+      const box = cy.container().getBoundingClientRect();
+      const p = node.renderedPosition();
+      return { x: box.left + p.x, y: box.top + p.y };
+    }, shot.rightClick);
+    if (!at) throw new Error(`${shot.artifact}: no visible node named ${shot.rightClick}`);
+    await pg.mouse.click(at.x, at.y, { button: "right" });
+    await pg.waitForSelector("#reach-strip:not(.hidden)");
+    await pg.waitForTimeout(1200);
+    await pg.evaluate(() => {
+      const cy = window.__cy();
+      cy.fit(cy.elements(":visible"), 60);
+    });
+    await pg.waitForTimeout(600);
   }
 
   if (shot.click) {
