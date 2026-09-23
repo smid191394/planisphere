@@ -201,11 +201,17 @@ test("only the two dependencies the product runs on ship", () => {
   assert.deepStrictEqual([...dirs].sort(), ["cytoscape", "typescript"], "only these two are the product's");
 });
 
-test("the only document that ships is the language reference", () => {
-  // What is written about the product for a reader of the repository — the
-  // release checklist, the fonts the banner is set in — is not part of it.
-  const docs = shipped().filter((f) => f.startsWith("docs/"));
+test("the documents that ship are the reader's, not the project's", () => {
+  // What is written for a reader of the repository — how to contribute, how to
+  // report something, what runs on a push, the fonts a banner is set in — is
+  // not part of what a reader installs.
+  const files = shipped();
+  const docs = files.filter((f) => f.startsWith("docs/"));
   assert.deepStrictEqual(docs, ["docs/languages.md"], `these should not ship: ${docs.join(", ")}`);
+  const top = files.filter((f) => /^[^/]+\.md$/.test(f)).sort();
+  assert.deepStrictEqual(top, ["CHANGELOG.md", "README.md"], `these should not ship: ${top.join(", ")}`);
+  const project = files.filter((f) => f.startsWith(".github/"));
+  assert.deepStrictEqual(project, [], `these should not ship: ${project.join(", ")}`);
 });
 
 test("nothing shipped carries the old name", () => {

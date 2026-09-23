@@ -6,6 +6,12 @@ openspec/**
 # How this project is planned is not part of it: without this line its command
 # documents and skills would ship inside the extension.
 .claude/**
+# How it is contributed to, and what runs when it is: the reader installs a
+# product, not a project.
+.github/**
+SECURITY.md
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
 packaging/**
 # The end-to-end suite and the release checklist test the package; neither is in it.
 e2e/**
