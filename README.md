@@ -1,8 +1,13 @@
-# Planisphere
+# Planisphere 🌠 — Read a codebase as one drawing
 
-Read a codebase as one drawing. Planisphere draws the types of a **Python**,
-**TypeScript**, **Go**, **Rust** or **Java** project as a radial map, and a click
-on any of them takes you to its source.
+![Planisphere](docs/images/banner.jpg)
+
+[![license: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![VS Code](https://img.shields.io/badge/VS%20Code-1.85%2B-blue)](https://code.visualstudio.com/)
+[![languages: 5](https://img.shields.io/badge/languages-Python%20%C2%B7%20TypeScript%20%C2%B7%20Go%20%C2%B7%20Rust%20%C2%B7%20Java-8957e5)](#what-each-language-needs)
+
+Planisphere draws the types of a project as a radial map, and a click on any of
+them takes you to its source.
 
 ![FastAPI's types, drawn by Planisphere](docs/images/overview.jpg)
 
@@ -94,11 +99,9 @@ that you can see at a glance what is overhead. Planisphere does the same for a
 codebase: it flattens a tangle of modules and types into one drawing, laid over
 a starfield.
 
-![Sirius](docs/images/sirius.png)
-
-This is Sirius, who keeps the place. Sirius is the brightest star on any
-planisphere, and the one every stargazer finds first — the Dog Star, in the
-constellation of the Great Dog.
+The dog at the top of this page is Sirius, who keeps the place. Sirius is the
+brightest star on any planisphere, and the one every stargazer finds first —
+the Dog Star, in the constellation of the Great Dog.
 
 ## Contributing
 

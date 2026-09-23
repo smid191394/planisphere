@@ -8,6 +8,7 @@
 - [x] 1.6 Right-click view: ripgrep's artifact, `SearcherBuilder` right-clicked, framed on what is left, into `docs/images/reach.jpg`.
 
 - [x] 1.7 Trim the mascot's picture, size it for the README, and put it in `docs/images/sirius.png`.
+- [x] 1.8 Compose `docs/images/banner.jpg` from the mascot, the star field and the name, with `npm run banner`, and open the README with it under a title carrying 🌠 and a badge row.
 
 ## 2. The README and what moves out of it
 

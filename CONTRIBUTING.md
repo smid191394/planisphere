@@ -63,8 +63,15 @@ npx playwright-core install chromium
 npm run screenshots                  # writes docs/images/overview.jpg and focus.jpg
 ```
 
-Run it again when the drawing's look changes, and look at both images before
+Run it again when the drawing's look changes, and look at the images before
 committing them.
+
+The banner at the top of the README is made from the mascot, the star field and
+the name, laid out in the same headless Chromium:
+
+```bash
+npm run banner                       # writes docs/images/banner.jpg
+```
 
 ## How the product is described
 

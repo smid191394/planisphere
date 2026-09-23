@@ -82,7 +82,8 @@
     "vendor:rust": "analyzers/rust/vendor.sh",
     "build:analyzers": "scripts/build-analyzers.sh",
     "test:e2e": "node e2e/run.js",
-    "screenshots": "npm run compile && node scripts/screenshots.js"
+    "screenshots": "npm run compile && node scripts/screenshots.js",
+    "banner": "node scripts/banner.js"
   },
   "dependencies": {
     "cytoscape": "^3.33.1",

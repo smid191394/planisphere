@@ -30,8 +30,8 @@ of a product whose whole point is a picture.
   the first publish, since the listing loads the README's images from it, and
   the package goes to both the Visual Studio Marketplace and Open VSX.
 
-Also here: the mascot's picture, which the author made, beside the name it
-explains.
+Also here: the mascot's picture, which the author made, in a banner over the
+star field the viewer draws, under a title that carries the product's mark.
 
 Not in this change: the viewer shortcomings the
 screenshots surfaced — a Python type's docstring is not shown in the comment
