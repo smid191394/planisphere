@@ -41,10 +41,11 @@ const SHOTS = [
     click: "Command",
   },
   {
-    // What the right button gives: only what the node points to, two steps out.
+    // What the right button gives: only what the node points to, two steps out,
+    // which reads as a tree growing upward from it.
     file: "reach.jpg",
-    artifact: "fixtures/go/gin/planisphere.json",
-    rightClick: "Engine",
+    artifact: "fixtures/rust/ripgrep/planisphere.json",
+    rightClick: "SearcherBuilder",
   },
 ];
 
@@ -172,6 +173,9 @@ async function shoot(browser, host, shot) {
         .nodes(":visible")
         .filter((n) => n.data("label") === name || String(n.data("label")).endsWith("/" + name))[0];
       if (!node) return null;
+      // Brought into view first: the opening frame can leave it off screen,
+      // and a click there would land on nothing.
+      cy.center(node);
       const box = cy.container().getBoundingClientRect();
       const p = node.renderedPosition();
       return { x: box.left + p.x, y: box.top + p.y };
@@ -196,6 +200,9 @@ async function shoot(browser, host, shot) {
         .nodes(":visible")
         .filter((n) => n.data("label") === name || String(n.data("label")).endsWith("/" + name))[0];
       if (!node) return null;
+      // Brought into view first: the opening frame can leave it off screen,
+      // and a click there would land on nothing.
+      cy.center(node);
       const box = cy.container().getBoundingClientRect();
       const p = node.renderedPosition();
       return { x: box.left + p.x, y: box.top + p.y };

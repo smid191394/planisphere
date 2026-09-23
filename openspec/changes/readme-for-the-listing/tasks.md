@@ -5,7 +5,7 @@
 - [x] 1.3 Overview: FastAPI's artifact, framed on the group the graph starts from, with everything outside it hidden, captured as the drawing's element only, into `docs/images/overview.jpg`.
 - [x] 1.4 Focus: cobra's artifact, `Command` clicked at its rendered position, waiting for the comment panel, into `docs/images/focus.jpg`.
 - [x] 1.5 Add `npm run screenshots`, and check the images by eye: labels readable at 900 pixels wide, nothing cut off, the comment panel filled.
-- [x] 1.6 Right-click view: gin's artifact, `Engine` right-clicked, framed on what is left, into `docs/images/reach.jpg`.
+- [x] 1.6 Right-click view: ripgrep's artifact, `SearcherBuilder` right-clicked, framed on what is left, into `docs/images/reach.jpg`.
 
 ## 2. The README and what moves out of it
 

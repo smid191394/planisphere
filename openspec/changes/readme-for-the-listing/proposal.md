@@ -16,8 +16,8 @@ of a product whose whole point is a picture.
     Planisphere is.
   - cobra's `Command` focused: its neighbours lit, the rest dimmed, and the
     panel showing its doc comment and its methods: what one click gives.
-  - gin's `Engine` right-clicked: everything else put away, and what it points
-    to two steps out drawn around it.
+  - ripgrep's `SearcherBuilder` right-clicked: everything else put away, and
+    what it points to two steps out growing above it as a tree.
 - **A script that makes the screenshots again**, so they follow the viewer when
   its look changes rather than going stale.
 - **The README rewritten for a reader who installs**: what it is, the

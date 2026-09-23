@@ -61,11 +61,12 @@ shows the comment above it and its methods.</sub>
   PNG beside the artifact, and opens the legend, which names every mark the
   drawing makes.
 
-![gin's Engine, with only what it points to, two steps out](docs/images/reach.jpg)
+![ripgrep's SearcherBuilder, with only what it points to, two steps out](docs/images/reach.jpg)
 
-<sub>gin's `Engine`, right-clicked: everything else is put away, and what is
-left is what `Engine` points to and what those point to. The strip at the top
-left says where you are and takes you back.</sub>
+<sub>ripgrep's `SearcherBuilder`, right-clicked: everything else is put away,
+and what it points to grows above it — `Searcher`, `Config` and `Encoding`,
+then what each of those points to. The strip at the top left says where you are
+and takes you back.</sub>
 
 Edges are `contains`, `inherits`, `uses` and `references`; the legend shows how
 each is drawn. To see the file as JSON, right-click it and choose **Open With…**
