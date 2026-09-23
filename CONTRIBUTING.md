@@ -64,7 +64,8 @@ npm run screenshots                  # writes overview.jpg, focus.jpg and reach.
 ```
 
 Run it again when the drawing's look changes, and look at the images before
-committing them.
+committing them. The first one presses the rail's `Show functions` button before
+it is taken; the other two leave the drawing as it opens.
 
 The banner at the top of the README is made from the mascot with the five
 languages ringed around it, and the name beside it, laid out in the same

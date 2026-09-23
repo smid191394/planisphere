@@ -11,8 +11,9 @@ Planisphere draws a project's types as a radial map. Click one to open its sourc
 
 ![FastAPI's types, drawn by Planisphere](docs/images/overview.jpg)
 
-<sub>FastAPI, from its own source. The red node is where the drawing starts;
-solid lines are inheritance, dashed ones are uses.</sub>
+<sub>FastAPI, from its own source, with its functions shown. Blue is a type and
+green a function; the red node is where the drawing starts; solid lines are
+inheritance, dashed ones are uses.</sub>
 
 ## Getting started
 

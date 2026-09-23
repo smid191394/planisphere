@@ -29,9 +29,11 @@ const IMAGE_WIDTH = 1200;
 
 const SHOTS = [
   {
-    // What Planisphere is: one framework's structure as a single drawing.
+    // What Planisphere is: one framework's whole structure as a single drawing,
+    // functions and all.
     file: "overview.jpg",
     artifact: "fixtures/python/fastapi/planisphere.json",
+    functions: true,
     frame: "primary-group",
   },
   {
@@ -149,6 +151,12 @@ async function shoot(browser, host, shot) {
   await pg.evaluate(() => {
     document.getElementById("searchbar").style.display = "none";
   });
+
+  if (shot.functions) {
+    // Functions are hidden until the rail's first button is pressed.
+    await pg.evaluate(() => document.getElementById("toggle-fns").click());
+    await pg.waitForTimeout(2500);
+  }
 
   if (shot.frame === "primary-group") {
     // Framed on the tree the graph starts from. Unconnected nodes sit in a
