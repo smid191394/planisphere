@@ -6,9 +6,7 @@ Defines how Planisphere's Java analyzer reads Java: which files and source roots
 walks, which declarations become nodes and how a nested type is named, what a
 method belongs to, how a package is placed and named, what `inherits` means, how
 names are resolved by the compiler, and what never becomes a node.
-
 ## Requirements
-
 ### Requirement: Java sources are read one source root at a time
 The analyzer SHALL walk the roots it is given for `.java` files, skipping the shared skipped directories and, in addition, `target/`, `build/` and `out/`, which is where Maven and Gradle write compiled output and generated source.
 
@@ -72,6 +70,10 @@ A field SHALL NOT be a member, and neither SHALL an enum constant: guava declare
 
 A method declared in a nested type SHALL belong to that nested type's node, not to the type around it.
 
+A member SHALL record the members of the same type it calls, recognised by what the source writes: a call written `this.name(…)`, or a call written with no receiver at all whose name the type declares a member under. Java writes most of its own calls the second way, and the name is enough — the type's own members are known, and the call reaches one of them whichever overload the compiler picks.
+
+A member SHALL also record what its own signature and body name outside its type, by the node it reaches: every edge the analyzer attributes to the type from a member's signature or body SHALL be recorded against that member as well. What a member names is what stands in a type's position — a return type, a parameter, a declared variable, a type written before a static member — so a call on a field or a parameter names a method rather than a type, and the edge such a field gives the type stays the type's alone. The type keeps the edge; the member says which method it came from. A name reaching the member's own type is recorded by neither, there being no edge from a node to itself.
+
 #### Scenario: A type lists its methods
 - **WHEN** a class declares methods and constructors
 - **THEN** its node records each as a member, with the file and line where its name is declared
@@ -83,6 +85,34 @@ A method declared in a nested type SHALL belong to that nested type's node, not 
 #### Scenario: Values are not members
 - **WHEN** a type declares fields, and an enum declares constants
 - **THEN** none of them is recorded as a member
+
+#### Scenario: A call on this
+- **WHEN** a method's body writes `this.other(…)` and the type declares `other`
+- **THEN** the member records `other`
+
+#### Scenario: A call with no receiver
+- **WHEN** a method's body writes `other(…)` and the type declares a member named `other`
+- **THEN** the member records `other`
+
+#### Scenario: A call with no receiver that the type does not declare
+- **WHEN** a method's body writes `other(…)` and the type declares nothing of that name
+- **THEN** the member records no call for it
+
+#### Scenario: A call on another object
+- **WHEN** a method's body calls a method on a field or a parameter
+- **THEN** the member records no call for it, and records nothing for it, the name being a method's and not a type's
+
+#### Scenario: A type named inside a body
+- **WHEN** a method's body declares a variable of a type that is a node
+- **THEN** the member records that node
+
+#### Scenario: A type named in a method's signature
+- **WHEN** a method takes an argument, or returns a value, of a type that is a node
+- **THEN** the member records that node
+
+#### Scenario: A method naming its own type
+- **WHEN** a method's body or signature names the type that declares it
+- **THEN** the member records nothing for it
 
 ### Requirement: A package is a unit that contains what its files declare
 The analyzer SHALL create a node of kind `package` for each package that declares at least one node, and a `contains` edge from it to every top-level type declared in its files and to every type nested inside those, so that no node is contained twice.
@@ -178,3 +208,4 @@ A `module-info.java` SHALL get no node of its own. It names a module rather than
 #### Scenario: module-info declares nothing
 - **WHEN** a source root holds a `module-info.java`
 - **THEN** it contributes no node
+

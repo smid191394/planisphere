@@ -21,6 +21,18 @@ const EXPORTED = [
   // what the right button shows
   "outwardFrom",
   "REACH_FAN",
+  // what a type is made of
+  "membersDrawing",
+  "wayIn",
+  "isMadeOfMembers",
+  "hasSomethingInside",
+  "memberNodeId",
+  // an open type's members as a tree, and the room made for it
+  "memberTreeOf",
+  "placeMemberTree",
+  "makeRoomForMembers",
+  "MEMBER_STEP",
+  "MEMBER_SPREAD",
   // the stylesheet, as something that can be asked for again
   "graphStyle",
   "settingAt",
@@ -96,6 +108,14 @@ const LIVE = [
   "activateFocus",
   "withGroups",
   "layoutGraph",
+  // the view of one type's members
+  "insideOf",
+  "openInside",
+  "closeInside",
+  // a type opened where it stands
+  "openTypes",
+  "openHere",
+  "closeHere",
 ];
 
 /** A 2D context where everything is a no-op and every property sticks. */

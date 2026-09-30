@@ -121,6 +121,17 @@ test(".java files only in target/, build/ or out/ do not count as Java", () => {
   }
 });
 
+test("a file whose name is not ASCII does not stop the analyzer", () => {
+  // The locale an analyzer inherits decides what a filename is. A JVM put into
+  // the C locale cannot read a name outside ASCII at all, and javac reads the
+  // directory the CLI was called from, so one such file beside the project is
+  // enough to fail a run that has nothing to do with it.
+  const files = { ...JAVA, "\u5716\u7247 004.png": "not source" };
+  const r = run(files, ["@", "--stdout", "--lang", "java"]);
+  assert.strictEqual(r.status, 0, r.stderr);
+  assert.deepStrictEqual(names(r.doc), ["JavaThing", "a"]);
+});
+
 test("a relative Java root and -o resolve against the caller's directory", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "planisphere-cli-java-"));
   try {

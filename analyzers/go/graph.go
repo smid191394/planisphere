@@ -41,6 +41,12 @@ type Member struct {
 	Name string `json:"name"`
 	File string `json:"file"`
 	Line int    `json:"line"`
+	// The methods of the same type this one calls, by name.
+	Calls []string `json:"calls,omitempty"`
+	// The nodes this method's signature and body name, by id. Each one is a
+	// target its own node has an edge to; the member says which method that
+	// edge came from.
+	Points []string `json:"points,omitempty"`
 }
 
 type Edge struct {

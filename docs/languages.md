@@ -638,6 +638,35 @@ and both are in the document, each in its own file. And a package that two
 source roots declare is two nodes, one per root, because the two roots are two
 compilations.
 
+## Methods in Python and TypeScript
+
+**A class's methods are its members**, as they are in the other three: a
+Python class's `def`s, and a TypeScript class's methods, constructor and
+properties holding a function, with an interface's method signatures. Each
+records what it calls on its receiver — `self` or `cls`, `this` — and which of
+its class's edges its body accounts for. Every one of them is written inside its
+class, so the size a type is ranked by does not change and no centre moves; the
+nodes and edges of all twelve artifacts are what they were, byte for byte.
+
+```
+project          classes with members   members   calls   points   growth
+cpython                        1,713     11,221   5,211    4,517     +70%
+django                         1,346      7,547   2,954    4,164     +73%
+scrapy                           262      1,407     562    1,874     +82%
+pydantic                         217      1,024     488      884     +40%
+fastapi                           54        200      57      266     +28%
+flask                             44        265      93      195     +95%
+requests                          22        163      62      165     +54%
+tinydb                            14        105      48       46    +214%
+angular                        1,376      7,484   3,063   11,713     +28%
+typeorm                          347      3,186   2,000    5,235    +100%
+nest                             344      1,875     895    1,749     +61%
+zod                               88        429      68      854      +8%
+```
+
+The growth is larger than the other three's because these artifacts carried
+almost nothing but nodes and edges: the members are most of what is new.
+
 ## The list
 
 ### Supported

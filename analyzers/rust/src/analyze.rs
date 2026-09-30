@@ -471,8 +471,34 @@ impl Analysis {
                 self.nodes[i].members.push(member);
             }
         }
+        // A call is kept only where the name is a member of the same node. A
+        // type's methods may be written across several impl blocks and files,
+        // so this is settled once they are all in, not as each block is read.
+        for node in &mut self.nodes {
+            let own: HashSet<String> = node.members.iter().map(|m| m.name.clone()).collect();
+            for m in &mut node.members {
+                m.calls.retain(|c| own.contains(c));
+            }
+        }
         for (from, to, kind) in found {
             self.add_edge(&from, &to, kind);
+        }
+        // What a member points at is which of its node's edges came from it, so
+        // it is settled once the edges are. A name the collector resolved can
+        // reach a node its type ends up with no edge to: the type itself, a
+        // node dropped from the document, or a generic that shares a name.
+        let mut out: HashMap<&str, HashSet<&str>> = HashMap::new();
+        for (from, to) in self.edges.keys() {
+            out.entry(from.as_str()).or_default().insert(to.as_str());
+        }
+        for node in &mut self.nodes {
+            let here = out.get(node.id.as_str());
+            for m in &mut node.members {
+                match here {
+                    Some(targets) => m.points.retain(|to| targets.contains(to.as_str())),
+                    None => m.points.clear(),
+                }
+            }
         }
     }
 
@@ -508,9 +534,12 @@ impl Analysis {
                 let Some(owner) = ty(&i.ident) else { return };
                 self.supertraits(idx, &owner, i.supertraits.iter(), found);
                 // A trait's own methods, signatures and default bodies alike.
+                let generics = generic_names(&i.generics);
                 for ti in &i.items {
                     if let syn::TraitItem::Fn(f) = ti {
-                        members.push((owner.clone(), member(file, &f.sig.ident)));
+                        let mut m = member(file, &f.sig.ident);
+                        m.points = self.names_in(idx, Some(&owner), &generics, |c| c.visit_trait_item_fn(f));
+                        members.push((owner.clone(), m));
                     }
                 }
                 self.collect(idx, &owner, Some(&owner), found, |c| c.visit_item_trait(i));
@@ -544,7 +573,10 @@ impl Analysis {
             (Some(t), _) => {
                 for ii in &i.items {
                     if let syn::ImplItem::Fn(f) = ii {
-                        members.push((t.clone(), member(file, &f.sig.ident)));
+                        let mut m = member(file, &f.sig.ident);
+                        m.calls = calls_on_self(f);
+                        m.points = self.names_in(idx, Some(t), &generics, |c| c.visit_impl_item_fn(f));
+                        members.push((t.clone(), m));
                     }
                 }
                 if let Some(r) = &trait_id {
@@ -588,6 +620,34 @@ impl Analysis {
                 }
             }
         }
+    }
+
+    /// What one function's signature and body name, by node id, in source
+    /// order and once each.
+    ///
+    /// The same collector the block's own edges come from, asked the narrower
+    /// question. The block is still collected whole, so the edges a type
+    /// carries are exactly what they were; this only says which function
+    /// inside it named them.
+    fn names_in<F>(&self, idx: usize, self_ty: Option<&String>, generics: &[String], visit: F) -> Vec<String>
+    where
+        F: FnOnce(&mut Collector<'_>),
+    {
+        let mut c = Collector {
+            a: self,
+            module: idx,
+            self_ty: self_ty.cloned(),
+            generics: generics.to_vec(),
+            found: Vec::new(),
+        };
+        visit(&mut c);
+        let mut out: Vec<String> = Vec::new();
+        for (to, _) in c.found {
+            if !out.contains(&to) {
+                out.push(to);
+            }
+        }
+        out
     }
 
     fn collect<F>(&self, idx: usize, owner: &str, self_ty: Option<&String>, found: &mut Found, visit: F)
@@ -823,7 +883,42 @@ fn declared(item: &Item) -> Option<(&'static str, &syn::Ident, &syn::Visibility)
 }
 
 fn member(file: &str, ident: &syn::Ident) -> Member {
-    Member { name: ident_name(ident), file: file.to_string(), line: ident.span().start().line }
+    Member {
+        name: ident_name(ident),
+        file: file.to_string(),
+        line: ident.span().start().line,
+        calls: Vec::new(),
+        points: Vec::new(),
+    }
+}
+
+/// What a method calls on `self`, in the order the body writes it, once each.
+///
+/// Recognised by what the source writes rather than by what a type says: `self`
+/// is the type the block implements, so a call on it names one of that type's
+/// own methods or none. A call on anything else — a field, a parameter, another
+/// value of the same type — is the type's, and stays where the rest of an impl
+/// body's names go.
+fn calls_on_self(f: &syn::ImplItemFn) -> Vec<String> {
+    struct Calls {
+        found: Vec<String>,
+    }
+    impl<'ast> syn::visit::Visit<'ast> for Calls {
+        fn visit_expr_method_call(&mut self, call: &'ast syn::ExprMethodCall) {
+            if let syn::Expr::Path(p) = &*call.receiver {
+                if p.qself.is_none() && p.path.is_ident("self") {
+                    let name = ident_name(&call.method);
+                    if !self.found.contains(&name) {
+                        self.found.push(name);
+                    }
+                }
+            }
+            syn::visit::visit_expr_method_call(self, call);
+        }
+    }
+    let mut c = Calls { found: Vec::new() };
+    syn::visit::Visit::visit_impl_item_fn(&mut c, f);
+    c.found
 }
 
 fn attrs(item: &Item) -> &[syn::Attribute] {

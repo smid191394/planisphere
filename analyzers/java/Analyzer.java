@@ -100,6 +100,14 @@ public final class Analyzer {
 
   static final class Member {
     final String name, file; final int line;
+    /** The members of the same type this one calls, by name. */
+    final List<String> calls = new ArrayList<>();
+    /**
+     * The nodes this member's signature and body name, by id. Each one is a
+     * target its own node has an edge to; the member says which method that
+     * edge came from.
+     */
+    final List<String> points = new ArrayList<>();
     Member(String name, String file, int line) { this.name = name; this.file = file; this.line = line; }
   }
 
@@ -252,6 +260,7 @@ public final class Analyzer {
       Map<String, String> own = byRootQname.getOrDefault(p.root, Map.of());
       String to = own.containsKey(p.qname) ? own.get(p.qname) : anyQname.get(p.qname);
       if (to == null || to.equals(p.from)) continue;
+      if (p.member != null && !p.member.points.contains(to)) p.member.points.add(to);
       String key = p.from + "\n" + to;
       String had = best.get(key);
       if (had == null || KINDS.indexOf(p.kind) > KINDS.indexOf(had)) best.put(key, p.kind);
@@ -259,6 +268,24 @@ public final class Analyzer {
     for (Map.Entry<String, String> e : best.entrySet()) {
       String[] pair = e.getKey().split("\n", 2);
       g.edges.add(new Edge(pair[0], pair[1], e.getValue()));
+    }
+
+    // A call is kept only where the name is a member of the same node: a class
+    // is read in one pass, and a call may be written above the method it names.
+    for (Node n : g.nodes) {
+      Set<String> own = new HashSet<>();
+      for (Member m : n.members) own.add(m.name);
+      for (Member m : n.members) m.calls.retainAll(own);
+    }
+
+    // What a member points at is which of its node's edges came from it, and
+    // which edge a name ends up as is settled only here: a pair carries one
+    // edge, and a name that resolved to nothing carries none.
+    Map<String, Set<String>> out = new HashMap<>();
+    for (Edge e : g.edges) out.computeIfAbsent(e.from, k -> new HashSet<>()).add(e.to);
+    for (Node n : g.nodes) {
+      Set<String> here = out.getOrDefault(n.id, Set.of());
+      for (Member m : n.members) m.points.retainAll(here);
     }
 
     g.nodes.sort(Comparator.comparing((Node n) -> n.file).thenComparingInt(n -> n.line).thenComparing(n -> n.name));
@@ -269,8 +296,10 @@ public final class Analyzer {
   /** An edge waiting for every root to be read, so its target can be found. */
   static final class Pending {
     final String root, from, qname, kind;
-    Pending(String root, String from, String qname, String kind) {
-      this.root = root; this.from = from; this.qname = qname; this.kind = kind;
+    /** The member whose signature or body wrote this name, where one did. */
+    final Member member;
+    Pending(String root, String from, String qname, String kind, Member member) {
+      this.root = root; this.from = from; this.qname = qname; this.kind = kind; this.member = member;
     }
   }
 
@@ -397,6 +426,10 @@ public final class Analyzer {
     final List<String> wildcards = new ArrayList<>();
     /** How deep inside a method, constructor or initializer we are. */
     int executable = 0;
+    /** The member being read, so that what it names is recorded against it. */
+    Member member;
+    /** The node that member belongs to, which is the only node it speaks for. */
+    Node memberOwner;
 
     Unit(Root root, Graph g, List<Pending> pending, Trees trees, Elements elements,
          CompilationUnitTree unit, String file, String text, String pkg) {
@@ -462,7 +495,7 @@ public final class Analyzer {
       for (TypeMirror t : supers) {
         String q = qualified(t);
         if (q != null && !q.equals("java.lang.Object")) {
-          pending.add(new Pending(root.root, node.id, q, "inherits"));
+          pending.add(new Pending(root.root, node.id, q, "inherits", null));
         }
       }
     }
@@ -474,11 +507,19 @@ public final class Analyzer {
       // A class that declares no constructor is given one by the compiler. The
       // compiler is asked whether this one is in the source, rather than the
       // source being guessed at from a position.
-      boolean written = start >= 0 && explicit(getCurrentPath());
-      if (here != null && executable == 0 && written) {
+      boolean written = start >= 0 && executable == 0 && explicit(getCurrentPath());
+      Member outerMember = member;
+      Node outerOwner = memberOwner;
+      if (here != null && written) {
         boolean ctor = tree.getName().contentEquals("<init>");
         String simple = ctor ? lastSegment(here.name) : tree.getName().toString();
-        here.members.add(new Member(simple, file, memberLine(start, simple)));
+        Member m = new Member(simple, file, memberLine(start, simple));
+        callsOnThis(tree.getBody(), m.calls);
+        here.members.add(m);
+        // What the rest of this declaration names is this member's, as well as
+        // the type's.
+        member = m;
+        memberOwner = here;
       }
       // A signature is a declaration and a body is executable, which is the
       // difference between `references` and `uses`: an annotation on a method,
@@ -492,6 +533,8 @@ public final class Analyzer {
       scan(tree.getBody(), null);
       scan(tree.getDefaultValue(), null);
       executable--;
+      member = outerMember;
+      memberOwner = outerOwner;
       return null;
     }
 
@@ -539,14 +582,18 @@ public final class Analyzer {
       String q = te.getQualifiedName().toString();
       if (q.isEmpty()) return;
       String kind = executable > 0 ? "uses" : "references";
-      pending.add(new Pending(root.root, here.id, q, kind));
+      // Only where the member belongs to the node this name is attributed to.
+      // A class declared inside a method body is a node of its own, and what
+      // it names is its own, not the enclosing method's.
+      Member m = here == memberOwner ? member : null;
+      pending.add(new Pending(root.root, here.id, q, kind, m));
       // A name in another source root does not resolve to a declaration, and
       // the compiler hands back the simple name it saw. What the file imported
       // says which type that was.
       if (q.indexOf('.') < 0) {
         String full = imported.get(q);
-        if (full != null) pending.add(new Pending(root.root, here.id, full, kind));
-        for (String w : wildcards) pending.add(new Pending(root.root, here.id, w + "." + q, kind));
+        if (full != null) pending.add(new Pending(root.root, here.id, full, kind, m));
+        for (String w : wildcards) pending.add(new Pending(root.root, here.id, w + "." + q, kind, m));
       }
     }
 
@@ -599,6 +646,36 @@ public final class Analyzer {
       return -1;
     }
 
+    /**
+     * What a method calls of its own type, in the order the body writes them,
+     * once each: a call written `this.name(…)`, or one written with no receiver
+     * at all. Java writes most of its own calls the second way.
+     *
+     * The name is enough, and no type is inferred for it. Whether the type
+     * declares a member under that name is settled later, once every member of
+     * the type is in: a class's methods are read in one pass, but a call may be
+     * written above the method it names.
+     */
+    void callsOnThis(Tree body, List<String> into) {
+      if (body == null) return;
+      new TreeScanner<Void, Void>() {
+        @Override
+        public Void visitMethodInvocation(MethodInvocationTree call, Void v) {
+          ExpressionTree target = call.getMethodSelect();
+          String name = null;
+          if (target instanceof IdentifierTree id) {
+            name = id.getName().toString();
+          } else if (target instanceof MemberSelectTree sel
+              && sel.getExpression() instanceof IdentifierTree on
+              && on.getName().contentEquals("this")) {
+            name = sel.getIdentifier().toString();
+          }
+          if (name != null && !into.contains(name)) into.add(name);
+          return super.visitMethodInvocation(call, v);
+        }
+      }.scan(body, null);
+    }
+
     int memberLine(int start, String simple) {
       if (start < 0 || start >= text.length()) return 1;
       Matcher m = Pattern.compile("\\b" + Pattern.quote(simple) + "\\s*\\(").matcher(text);
@@ -639,7 +716,24 @@ public final class Analyzer {
             b.append("        {\n");
             b.append("          \"name\": ").append(quote(m.name)).append(",\n");
             b.append("          \"file\": ").append(quote(m.file)).append(",\n");
-            b.append("          \"line\": ").append(m.line).append("\n");
+            b.append("          \"line\": ").append(m.line);
+            if (!m.calls.isEmpty()) {
+              b.append(",\n          \"calls\": [\n");
+              for (int c = 0; c < m.calls.size(); c++) {
+                b.append("            ").append(quote(m.calls.get(c)));
+                b.append(c + 1 < m.calls.size() ? ",\n" : "\n");
+              }
+              b.append("          ]");
+            }
+            if (!m.points.isEmpty()) {
+              b.append(",\n          \"points\": [\n");
+              for (int c = 0; c < m.points.size(); c++) {
+                b.append("            ").append(quote(m.points.get(c)));
+                b.append(c + 1 < m.points.size() ? ",\n" : "\n");
+              }
+              b.append("          ]");
+            }
+            b.append("\n");
             b.append("        }").append(j + 1 < n.members.size() ? ",\n" : "\n");
           }
           b.append("      ]");

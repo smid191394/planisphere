@@ -9,7 +9,7 @@ import json
 import os
 import sys
 from collections import defaultdict
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 # Unbound refs like `isinstance(x, set)` must not match a project symbol named `set`.
@@ -118,6 +118,76 @@ class Node:
     file: str
     line: int
     endLine: Optional[int] = None
+    # A class's methods: `{name, file, line}`, and what each one calls of the
+    # class and points at outside it, once the edges are known.
+    members: List[dict] = field(default_factory=list)
+
+
+def _node_dict(n: Node) -> dict:
+    """A node as the document writes it: no `members` where there are none."""
+    d = asdict(n)
+    if not d["members"]:
+        del d["members"]
+    return d
+
+
+def _methods_of(cls: ast.ClassDef) -> List[ast.AST]:
+    """The `def`s written directly in a class, the last of each name kept.
+
+    The last, as for a top-level name: it is what the name means once the class
+    body has run, whether the earlier ones are `@overload` signatures or a
+    property's getter under its setter. In the order of those last ones.
+    """
+    last: Dict[str, ast.AST] = {}
+    for stmt in cls.body:
+        if not isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        # A member at its class's own place would be the same declaration as
+        # the node, which the document does not hold.
+        if stmt.lineno == cls.lineno:
+            continue
+        last.pop(stmt.name, None)
+        last[stmt.name] = stmt
+    return list(last.values())
+
+
+def _receiver(fn: ast.AST) -> Optional[str]:
+    """The name a method's body calls its own class's methods on, if any.
+
+    Its first parameter, whatever it is called — `self`, or `cls` for a
+    `@classmethod`. A `@staticmethod` has none.
+    """
+    for dec in getattr(fn, "decorator_list", []):
+        name = dec.id if isinstance(dec, ast.Name) else getattr(dec, "attr", None)
+        if name == "staticmethod":
+            return None
+    args = getattr(fn, "args")
+    first = (list(args.posonlyargs) + list(args.args))[:1]
+    return first[0].arg if first else None
+
+
+def _calls_on_receiver(fn: ast.AST) -> List[str]:
+    """What a method calls on its receiver, in the order written, once each."""
+    receiver = _receiver(fn)
+    if receiver is None:
+        return []
+    found: List[str] = []
+
+    class Calls(ast.NodeVisitor):
+        def visit_Call(self, n: ast.Call) -> None:
+            f = n.func
+            if (
+                isinstance(f, ast.Attribute)
+                and isinstance(f.value, ast.Name)
+                and f.value.id == receiver
+                and f.attr not in found
+            ):
+                found.append(f.attr)
+            self.generic_visit(n)
+
+    for stmt in getattr(fn, "body", []):
+        Calls().visit(stmt)
+    return found
 
 
 def node_id(file_path: str, kind: str, name: str) -> str:
@@ -143,6 +213,8 @@ class ModuleInfo:
         # binding: local_name -> ("module", module_file_guess) or ("name", exported_name, from_module)
         self.import_bindings: Dict[str, Tuple] = {}
         self.class_defs: List[ast.ClassDef] = []
+        # class node id -> the methods its members were read from
+        self.methods: Dict[str, List[ast.AST]] = {}
         self.func_defs: List[ast.AST] = []  # FunctionDef | AsyncFunctionDef
         # Names this file binds somewhere of its own: parameters, loop
         # variables, assignments, nested definitions. What such a name means
@@ -179,6 +251,7 @@ def parse_module(file_path: str) -> Optional[ModuleInfo]:
     for node in tree.body:
         if isinstance(node, ast.ClassDef):
             nid = node_id(file_path, "class", node.name)
+            methods = _methods_of(node)
             _put_symbol(
                 info,
                 Node(
@@ -188,8 +261,14 @@ def parse_module(file_path: str) -> Optional[ModuleInfo]:
                     file=file_path,
                     line=node.lineno,
                     endLine=getattr(node, "end_lineno", None),
+                    members=[
+                        {"name": fn.name, "file": file_path, "line": fn.lineno}
+                        for fn in methods
+                    ],
                 ),
             )
+            # The declaration the node ended up with: a later one replaces it.
+            info.methods[nid] = methods
             info.local_symbols[node.name] = nid
             info.class_defs.append(node)
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -586,6 +665,31 @@ def analyze(roots: List[str]) -> dict:
             assert isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef))
             link_owner(m, fn, fn.name, m.local_symbols[fn.name])
 
+    # What each member calls of its class, and which of its class's edges it
+    # accounts for. After every edge, because a name a method resolves may be
+    # one its class ends up with no edge to — itself, or nothing in the
+    # document — and a member records only edges its node has.
+    for m in modules:
+        for src, methods in m.methods.items():
+            node = by_id.get(src)
+            if node is None:
+                continue
+            own = {fn.name for fn in methods}
+            by_name = {mem["name"]: mem for mem in node.members}
+            for fn in methods:
+                mem = by_name[fn.name]
+                calls = [c for c in _calls_on_receiver(fn) if c in own]
+                if calls:
+                    mem["calls"] = calls
+                used, annotated = _referenced_names(fn, m.bound_names)
+                points: Set[str] = set()
+                for ref in used | annotated:
+                    target = resolve_ref(m, ref, src)
+                    if target and target != src and (src, target) in edge_at:
+                        points.add(target)
+                if points:
+                    mem["points"] = sorted(points)
+
     # Sorted, because the artifact is a file people keep.
     #
     # Reference collection runs through sets, and Python randomises string
@@ -595,7 +699,7 @@ def analyze(roots: List[str]) -> dict:
     # can read and makes "did this change anything?" impossible to answer by
     # comparing files. Node order is stable by construction; edge order is not.
     return {
-        "nodes": [asdict(n) for n in nodes],
+        "nodes": [_node_dict(n) for n in nodes],
         "edges": sorted(edges, key=lambda e: (e["from"], e["to"], e["kind"])),
     }
 

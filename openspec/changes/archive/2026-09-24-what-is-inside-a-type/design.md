@@ -83,7 +83,7 @@ under that — the railroad diagram, drawn from the code that follows it.
 **Decided: (C)**, entered from the way in.
 
 Both were mocked from real data — the 69 members of sqlparser-ranger's `Parser`
-and the 349 calls between them — and the pair settles two things at once.
+and the 342 calls between them — and the pair settles two things at once.
 
 Drawn whole, the view is centred on `eat`, a one-line helper every rule calls,
 and the structure the parser is built from sits behind it. Entered at

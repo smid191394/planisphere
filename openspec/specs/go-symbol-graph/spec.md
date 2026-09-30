@@ -13,9 +13,7 @@ Defines how Planisphere's Go analyzer reads Go. It covers:
 
 What the resulting document must look like belongs to
 `structure-graph-artifact` and binds every analyzer.
-
 ## Requirements
-
 ### Requirement: Go sources in one module, tests and other modules excluded
 The analyzer SHALL walk `.go` files under the given root(s). It MUST NOT walk
 files named `*_test.go`.
@@ -163,10 +161,17 @@ Every edge arising from a method's signature or body SHALL be attributed to the
 node of its receiver's type, whichever file the method is declared in. A method
 whose receiver type is not a node in the graph SHALL contribute no edges.
 
+Every such edge SHALL also be recorded against the member for that method, by
+the node it reaches. The type keeps the edge; the member says which method it
+came from. A name reaching the receiver's own type is recorded by neither,
+there being no edge from a node to itself.
+
 A name that resolves to a method or to a struct field SHALL be treated as naming
 the type that declares it. Calling `s.Close()` is a use of the type `Close` is
 declared on. Where a method or field is promoted through embedding, the type
 named SHALL be the one that declares it.
+
+A member SHALL record the members of the same type it calls, recognised by what the source writes: a call on the receiver the method declares. The receiver's name is whatever the method gave it — `c`, `cmd`, `f` — and it is written at the top of the method, so no type is inferred. A call on anything else is the type's, as the rest of a method body is.
 
 #### Scenario: A method is not a node
 - **WHEN** a file declares `func (s *Server) Start()`
@@ -199,6 +204,30 @@ named SHALL be the one that declares it.
 #### Scenario: Neither init nor a blank function is a member
 - **WHEN** a package declares `func init()` and `func _()`
 - **THEN** neither is recorded as a member of anything
+
+#### Scenario: A method calling another on its receiver
+- **WHEN** a method declares receiver `c` and its body writes `c.Other(…)`, where `Other` is a method of the same type
+- **THEN** the member records `Other`
+
+#### Scenario: A receiver that is not named
+- **WHEN** a method declares its receiver without a name
+- **THEN** it records no calls, since nothing in the body can name it
+
+#### Scenario: A call on another value of the same type
+- **WHEN** a method's body calls a method on a parameter of its own type rather than on the receiver
+- **THEN** the member records nothing for it
+
+#### Scenario: A method that names another type
+- **WHEN** a method's body calls `NewRouter`, which is a node
+- **THEN** the edge runs from the receiver's type, and the member for that method records that node
+
+#### Scenario: A type named in a method's signature
+- **WHEN** a method takes an argument of a type that is a node
+- **THEN** the member records that node
+
+#### Scenario: A method of a type that is not a node
+- **WHEN** a method's receiver type is not a node in the graph
+- **THEN** no member and nothing it points at are recorded
 
 ### Requirement: Package-level code belongs to the package
 What package-level code names SHALL be attributed to the node of the package
@@ -402,3 +431,4 @@ file node. It is content, however little.
 #### Scenario: A file holding the package's documentation is the package's
 - **WHEN** `doc.go` holds only a comment and the `package` clause, and the package node is placed there
 - **THEN** no `file` node is created for it
+

@@ -370,3 +370,114 @@ test("a file that mixes in its own declarations is not a pure re-export", () => 
   });
   assert.deepStrictEqual(kinds(result), ["class:Thing", "file:mixed.ts"]);
 });
+
+// ---------------------------------------------------------------------------
+// Members: a class's and an interface's methods.
+//
+// A method is not a node, and until it is a member nothing in the document
+// names it — no list in the panel, no search that finds it, no type to open.
+
+const SOURCE = `
+export class Token {}
+
+export class Parser {
+  constructor(private readonly src: string) {}
+
+  statement(): Token {
+    this.expr();
+    this.expr();
+    return new Token();
+  }
+
+  expr(): void {
+    this.eat();
+    helper();
+  }
+
+  eat(): void {}
+
+  parse(x: string): void;
+  parse(x: number): void;
+  parse(x: any): void {
+    this.eat();
+  }
+
+  onTick = () => {
+    this.eat();
+  };
+
+  get size(): number {
+    return 0;
+  }
+
+  label = "parser";
+}
+
+export interface Reader {
+  read(): Token;
+  close(): void;
+}
+
+export function helper(): void {}
+`;
+
+const node = (r, name) => r.nodes.find((n) => n.name === name);
+const member = (r, cls, name) => (node(r, cls).members || []).filter((m) => m.name === name);
+
+test("a class lists its methods, constructor and function-valued properties", () => {
+  const { result } = analyzed({ "parser.ts": SOURCE });
+  assert.deepStrictEqual(
+    node(result, "Parser").members.map((m) => m.name),
+    ["constructor", "statement", "expr", "eat", "parse", "onTick"]
+  );
+  assert.strictEqual(node(result, "Token").members, undefined, "a class with no methods records none");
+  assert.strictEqual(node(result, "helper").members, undefined, "a function records none");
+});
+
+test("an accessor and a plain property are not members", () => {
+  const { result } = analyzed({ "parser.ts": SOURCE });
+  const names = node(result, "Parser").members.map((m) => m.name);
+  assert.ok(!names.includes("size"), "`get size()` is read, not called");
+  assert.ok(!names.includes("label"), "a property holding a string is not a method");
+});
+
+test("an interface lists its method signatures", () => {
+  const { result } = analyzed({ "parser.ts": SOURCE });
+  assert.deepStrictEqual(node(result, "Reader").members.map((m) => m.name), ["read", "close"]);
+});
+
+test("overloads are one member, at the implementation", () => {
+  const { result } = analyzed({ "parser.ts": SOURCE });
+  const found = member(result, "Parser", "parse");
+  assert.strictEqual(found.length, 1);
+  const lines = SOURCE.replace(/^\n/, "").split("\n");
+  assert.match(lines[found[0].line - 1], /parse\(x: any\)/);
+});
+
+test("a member records what it calls on this", () => {
+  const { result } = analyzed({ "parser.ts": SOURCE });
+  const calls = (name) => member(result, "Parser", name)[0].calls || [];
+  assert.deepStrictEqual(calls("statement"), ["expr"], "written twice, recorded once");
+  assert.deepStrictEqual(calls("expr"), ["eat"], "a free function is not a member's call");
+  assert.deepStrictEqual(calls("onTick"), ["eat"], "a function-valued property calls like a method");
+  assert.deepStrictEqual(calls("eat"), []);
+});
+
+test("a member records the nodes its body names, each an edge its class has", () => {
+  const { result } = analyzed({ "parser.ts": SOURCE });
+  const points = (name) => member(result, "Parser", name)[0].points || [];
+  assert.deepStrictEqual(points("statement"), [node(result, "Token").id]);
+  assert.deepStrictEqual(points("expr"), [node(result, "helper").id]);
+  const parser = node(result, "Parser").id;
+  const edges = new Set(result.edges.map((e) => e.from + " " + e.to));
+  for (const m of node(result, "Parser").members) {
+    for (const to of m.points || []) assert.ok(edges.has(parser + " " + to), `${m.name} -> ${to}`);
+  }
+  assert.deepStrictEqual(member(result, "Reader", "read")[0].points, [node(result, "Token").id]);
+});
+
+test("a member on its class's own line is not recorded", () => {
+  const { result } = analyzed({ "one.ts": "export class A { f() {} }\nexport class B {\n  g() {}\n}\n" });
+  assert.strictEqual(node(result, "A").members, undefined);
+  assert.deepStrictEqual(node(result, "B").members.map((m) => m.name), ["g"]);
+});

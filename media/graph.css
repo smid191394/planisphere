@@ -429,8 +429,51 @@ body.ready #main {
    is not the same string as `ASYNCEXITSTACKMIDDLEWARE`: Python's casing
    carries meaning, and flattening it makes the panel disagree with both the
    node it came from and the file it is quoting. */
-#comment h3 {
+/* The name, and the two ways of reading the type it names. The name gives way
+   when there is not room for both — it is truncated, the buttons are not. */
+#comment-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   margin: 0 0 6px;
+}
+
+#comment-head button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: none;
+  color: #C8CED6;
+  cursor: pointer;
+}
+
+#comment-head button:hover {
+  background: #2E3540;
+  color: #E8EAED;
+}
+
+/* Pressed while the type is open, as the rail's toggles are. */
+#comment-head button[aria-pressed="true"] {
+  background: #1E88E5;
+  border-color: #1E88E5;
+  color: #FFFFFF;
+}
+
+/* Its own, because the id rule above outranks the shared class. */
+#comment-head button.hidden {
+  display: none;
+}
+
+#comment h3 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
   font-family: var(--vscode-editor-font-family, monospace);
   font-size: 11px;
   font-weight: 600;

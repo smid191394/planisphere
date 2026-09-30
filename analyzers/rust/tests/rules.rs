@@ -268,6 +268,145 @@ fn visibility_is_the_internal_flag() {
 // ---------------------------------------------------------------------------
 // Members
 
+fn calls(n: &Node, member: &str) -> Vec<String> {
+    n.members
+        .iter()
+        .find(|m| m.name == member)
+        .unwrap_or_else(|| panic!("no member named {member}"))
+        .calls
+        .clone()
+}
+
+#[test]
+fn a_member_records_what_it_calls_on_self() {
+    let s = Scratch::krate(&[(
+        "src/lib.rs",
+        "pub struct Parser;\n\nimpl Parser {\n    pub fn statement(&mut self) {\n        self.expr();\n        self.expr();\n    }\n\n    fn expr(&mut self) {\n        helper();\n    }\n}\n\nfn helper() {}\n",
+    )]);
+    let g = s.graph();
+    let p = must(&g, &s.id("src/lib.rs", "struct", "Parser"));
+    // Written twice, recorded once: how often is a fact about a body.
+    assert_eq!(calls(p, "statement"), vec!["expr"]);
+    // A free function is not a member of the type, so it is not a member's call.
+    assert!(calls(p, "expr").is_empty());
+}
+
+#[test]
+fn a_call_on_something_else_is_not_a_members_call() {
+    let s = Scratch::krate(&[(
+        "src/lib.rs",
+        "pub struct Scanner;\n\nimpl Scanner {\n    pub fn next(&mut self) {}\n}\n\npub struct Parser {\n    scanner: Scanner,\n}\n\nimpl Parser {\n    pub fn advance(&mut self) {\n        self.scanner.next();\n    }\n\n    pub fn next(&mut self) {}\n}\n",
+    )]);
+    let g = s.graph();
+    let p = must(&g, &s.id("src/lib.rs", "struct", "Parser"));
+    // `self.scanner.next()` is a call on a field, not on `self` — and `Parser`
+    // has a `next` of its own, so a rule reading the name alone would be wrong.
+    assert!(calls(p, "advance").is_empty(), "a call on a field is not a call on self");
+}
+
+fn points(n: &Node, member: &str) -> Vec<String> {
+    n.members
+        .iter()
+        .find(|m| m.name == member)
+        .unwrap_or_else(|| panic!("no member named {member}"))
+        .points
+        .clone()
+}
+
+#[test]
+fn a_member_records_the_nodes_its_body_names() {
+    let s = Scratch::krate(&[(
+        "src/lib.rs",
+        "pub struct Scanner;\n\nimpl Scanner {\n    pub fn new() -> Scanner {\n        Scanner\n    }\n}\n\npub struct Parser;\n\nimpl Parser {\n    pub fn advance(&mut self) {\n        let _a = Scanner::new();\n        let _b = Scanner::new();\n    }\n\n    pub fn quiet(&mut self) {}\n}\n",
+    )]);
+    let g = s.graph();
+    let p = must(&g, &s.id("src/lib.rs", "struct", "Parser"));
+    // The type keeps the edge; the member says which method it came from.
+    // Named twice, recorded once.
+    assert_eq!(points(p, "advance"), vec![s.id("src/lib.rs", "struct", "Scanner")]);
+    assert!(points(p, "quiet").is_empty(), "a method that names nothing outside records nothing");
+}
+
+#[test]
+fn a_type_named_by_a_field_is_the_types_alone() {
+    let s = Scratch::krate(&[(
+        "src/lib.rs",
+        "pub struct Scanner;\n\nimpl Scanner {\n    pub fn next(&mut self) {}\n}\n\npub struct Parser {\n    scanner: Scanner,\n}\n\nimpl Parser {\n    pub fn advance(&mut self) {\n        self.scanner.next();\n    }\n}\n",
+    )]);
+    let g = s.graph();
+    let parser = s.id("src/lib.rs", "struct", "Parser");
+    let scanner = s.id("src/lib.rs", "struct", "Scanner");
+    let p = must(&g, &parser);
+    // The field is what names `Scanner`; a method call on it names nothing this
+    // analyzer can resolve, no type being inferred for a receiver. So the edge
+    // is the type's and no member claims it — which is what the drawing shows
+    // when it draws a line from the type rather than from one of its methods.
+    assert!(g.edges.iter().any(|e| e.from == parser && e.to == scanner));
+    assert!(points(p, "advance").is_empty());
+}
+
+#[test]
+fn a_member_records_a_free_function_it_calls() {
+    let s = Scratch::krate(&[(
+        "src/lib.rs",
+        "pub struct Parser;\n\nimpl Parser {\n    pub fn statement(&mut self) {\n        helper();\n    }\n}\n\npub fn helper() {}\n",
+    )]);
+    let g = s.graph();
+    let p = must(&g, &s.id("src/lib.rs", "struct", "Parser"));
+    assert_eq!(points(p, "statement"), vec![s.id("src/lib.rs", "function", "helper")]);
+}
+
+#[test]
+fn a_member_records_a_type_its_signature_names() {
+    let s = Scratch::krate(&[(
+        "src/lib.rs",
+        "pub struct Token;\n\npub struct Parser;\n\nimpl Parser {\n    pub fn eat(&mut self, t: Token) -> Token {\n        t\n    }\n}\n",
+    )]);
+    let g = s.graph();
+    let p = must(&g, &s.id("src/lib.rs", "struct", "Parser"));
+    assert_eq!(points(p, "eat"), vec![s.id("src/lib.rs", "struct", "Token")]);
+}
+
+#[test]
+fn a_member_does_not_record_its_own_type() {
+    let s = Scratch::krate(&[(
+        "src/lib.rs",
+        "pub struct Parser;\n\nimpl Parser {\n    pub fn new() -> Parser {\n        Parser\n    }\n}\n",
+    )]);
+    let g = s.graph();
+    let p = must(&g, &s.id("src/lib.rs", "struct", "Parser"));
+    // A node has no edge to itself, so there is nothing for the member to name.
+    assert!(points(p, "new").is_empty());
+}
+
+#[test]
+fn what_a_member_records_is_an_edge_its_type_has() {
+    let s = Scratch::krate(&[(
+        "src/lib.rs",
+        "pub struct Token;\n\npub struct Scanner;\n\nimpl Scanner {\n    pub fn next(&mut self) -> Token {\n        Token\n    }\n}\n\npub struct Parser;\n\nimpl Parser {\n    pub fn advance(&mut self, s: &mut Scanner) -> Token {\n        s.next()\n    }\n}\n",
+    )]);
+    let g = s.graph();
+    let parser = s.id("src/lib.rs", "struct", "Parser");
+    let p = must(&g, &parser);
+    for to in points(p, "advance") {
+        assert!(
+            g.edges.iter().any(|e| e.from == parser && e.to == to),
+            "the type has no edge to {to}, which its member records"
+        );
+    }
+}
+
+#[test]
+fn a_traits_own_methods_record_what_they_name() {
+    let s = Scratch::krate(&[(
+        "src/lib.rs",
+        "pub struct Ast;\n\npub trait Parse {\n    fn parse(&self) -> Ast;\n}\n",
+    )]);
+    let g = s.graph();
+    let t = must(&g, &s.id("src/lib.rs", "trait", "Parse"));
+    assert_eq!(points(t, "parse"), vec![s.id("src/lib.rs", "struct", "Ast")]);
+}
+
 #[test]
 fn an_impl_blocks_functions_are_the_types_members() {
     let s = Scratch::krate(&[(

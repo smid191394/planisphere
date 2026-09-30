@@ -21,6 +21,11 @@ copy of the working tree — with each editor's own installer:
 - [ ] Look at the drawing of one real project, e.g. a fixture: modules in
       their boxes, labels readable, edges between the right boxes; clicking a
       node shows its members; search finds a node and Enter moves to the next.
+- [ ] In one project of each language, a class with methods shows the two
+      buttons beside its name in the panel. Expanding draws its methods around
+      it and pushes the rest outward; pressing it again puts them back. The
+      other draws them alone, and the strip's arrow comes back. **E** and **M**
+      do the same on the focused node.
 - [ ] A folder holding two languages asks which one.
 - [ ] Cancelling a long run (a large project) stops it and leaves no file.
 
@@ -48,7 +53,7 @@ images load from this repository on GitHub.
       its links into the repository are broken.
 - [ ] `CHANGELOG.md` has an entry for this version.
 - [ ] `npm run screenshots` has been run since the drawing's look last changed,
-      and the two images match what the viewer draws in an editor.
+      and the images match what the viewer draws in an editor.
 - [ ] Published to the Visual Studio Marketplace with `vsce publish`, and to
       Open VSX, which Cursor installs from, with `ovsx publish`.
 - [ ] On both published pages the README's images show, and its links work.

@@ -53,6 +53,13 @@ missing one is named.
   above it and its members. **Click again** to jump to the source.
 - **Right-click** a node: only what it points to, two steps out. **Escape**
   comes back. Clicking empty canvas clears the focus.
+- **Open a type**: the button beside its name in the panel, or **E**, draws a
+  type's methods as the tree their calls make, around the type where it stands
+  — the rest of the project moves outward to make room, and each line to it
+  starts at the method that names it. The one beside it, or **M**, draws that
+  tree alone. A method's place says how few calls it is from the way in, not
+  whose it is: one called from twenty places is drawn beside one of them, and
+  the lines from all twenty are drawn.
 - **/** searches, members included, and **Enter** moves to the next match.
   **F** fits the drawing; **C** makes the focused node the centre.
 - The rail on the left hides functions, resets the view, opens the settings and
@@ -62,6 +69,12 @@ missing one is named.
 
 <sub>ripgrep's `SearcherBuilder`, right-clicked: what it points to grows above
 it, and the strip at the top left takes you back.</sub>
+
+![sqlparser-ranger's Parser, opened: its methods as a tree in the middle, the types it builds around them](docs/images/expand.jpg)
+
+<sub>sqlparser-ranger's `Parser`, opened: its methods are the grammar it
+follows — `sql_stmt_list` beside the type, the statements around it, the
+clauses beyond — and the types they build make room around them.</sub>
 
 Edges are `contains`, `inherits`, `uses` and `references`; the legend shows how
 each is drawn.

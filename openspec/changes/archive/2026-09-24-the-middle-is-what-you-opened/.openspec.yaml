@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-09-24
+goal: An open type's members are laid out as their own tree where the type
+  stands, and the rest of the drawing moves outward to make room

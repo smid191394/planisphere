@@ -1412,3 +1412,134 @@ class ReExportOnlyModuleTests(unittest.TestCase):
         )
         names = sorted(n["name"] for n in result["nodes"])
         self.assertEqual(names, ["Thing"])
+
+
+class MemberTests(unittest.TestCase):
+    """A class's methods are its members.
+
+    A method is not a node, and until it is a member nothing in the document
+    names it: the panel has no list for a Python class, search cannot find a
+    method, and a type cannot be opened. The member is the method the analyzer
+    already walks to find its class's edges.
+    """
+
+    @staticmethod
+    def _write(path: str, text: str) -> None:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(textwrap.dedent(text))
+
+    def _analyze(self, files: dict) -> dict:
+        with tempfile.TemporaryDirectory() as tmp:
+            for rel, src in files.items():
+                self._write(os.path.join(tmp, rel), src)
+            result = analyze([tmp])
+            # Paths are the temporary directory's; name them by file instead.
+            self.root = tmp
+            return result
+
+    def _node(self, result: dict, name: str) -> dict:
+        found = [n for n in result["nodes"] if n["name"] == name]
+        self.assertEqual(len(found), 1, name)
+        return found[0]
+
+    def _member(self, result: dict, cls: str, name: str) -> dict:
+        members = [m for m in self._node(result, cls).get("members", []) if m["name"] == name]
+        self.assertEqual(len(members), 1, f"{cls}.{name}")
+        return members[0]
+
+    PARSER = """
+        class Token:
+            pass
+
+
+        class Parser:
+            def statement(self):
+                self.expr()
+                self.expr()
+                return Token()
+
+            async def expr(self):
+                def inner():
+                    return 1
+                return self.eat()
+
+            def eat(self):
+                pass
+
+            @classmethod
+            def build(cls):
+                return cls.eat()
+
+            @staticmethod
+            def helper(x):
+                return x.eat()
+
+            @property
+            def size(self):
+                return 0
+
+            @size.setter
+            def size(self, value):
+                pass
+
+            class Nested:
+                def hidden(self):
+                    pass
+
+
+        def free():
+            return Parser()
+        """
+
+    def test_a_class_lists_its_methods(self) -> None:
+        result = self._analyze({"parser.py": self.PARSER})
+        names = [m["name"] for m in self._node(result, "Parser")["members"]]
+        self.assertEqual(names, ["statement", "expr", "eat", "build", "helper", "size"])
+        self.assertNotIn("members", self._node(result, "Token"), "a class with no methods records none")
+        self.assertNotIn("members", self._node(result, "free"), "a function records none")
+
+    def test_a_member_is_where_its_def_is(self) -> None:
+        result = self._analyze({"parser.py": self.PARSER})
+        m = self._member(result, "Parser", "statement")
+        self.assertTrue(m["file"].endswith("parser.py"))
+        line = textwrap.dedent(self.PARSER).splitlines()[m["line"] - 1]
+        self.assertIn("def statement", line)
+
+    def test_nested_things_are_not_members(self) -> None:
+        result = self._analyze({"parser.py": self.PARSER})
+        names = {m["name"] for m in self._node(result, "Parser")["members"]}
+        self.assertNotIn("inner", names, "a function inside a method is not a member")
+        self.assertNotIn("hidden", names, "a nested class's method is not a member")
+
+    def test_a_name_declared_twice_is_the_last(self) -> None:
+        result = self._analyze({"parser.py": self.PARSER})
+        m = self._member(result, "Parser", "size")
+        lines = textwrap.dedent(self.PARSER).splitlines()
+        self.assertIn("def size(self, value)", lines[m["line"] - 1], "the setter, which comes last")
+
+    def test_calls_on_the_receiver(self) -> None:
+        result = self._analyze({"parser.py": self.PARSER})
+        calls = lambda name: self._member(result, "Parser", name).get("calls", [])
+        self.assertEqual(calls("statement"), ["expr"], "written twice, recorded once")
+        self.assertEqual(calls("expr"), ["eat"])
+        self.assertEqual(calls("build"), ["eat"], "a classmethod's receiver is cls")
+        self.assertEqual(calls("helper"), [], "a staticmethod has no receiver")
+        self.assertEqual(calls("eat"), [])
+
+    def test_what_a_member_points_at(self) -> None:
+        result = self._analyze({"parser.py": self.PARSER})
+        token = self._node(result, "Token")["id"]
+        parser = self._node(result, "Parser")["id"]
+        self.assertEqual(self._member(result, "Parser", "statement").get("points", []), [token])
+        self.assertEqual(self._member(result, "Parser", "eat").get("points", []), [])
+        # What a member records is an edge its class has.
+        edges = {(e["from"], e["to"]) for e in result["edges"]}
+        for m in self._node(result, "Parser")["members"]:
+            for to in m.get("points", []):
+                self.assertIn((parser, to), edges)
+
+    def test_a_member_on_its_class_line_is_not_recorded(self) -> None:
+        # One line holds both: the document keeps no member at a node's place.
+        result = self._analyze({"one.py": "class A: pass\n\n\nclass B:\n    def f(self): pass\n"})
+        self.assertEqual([m["name"] for m in self._node(result, "B")["members"]], ["f"])

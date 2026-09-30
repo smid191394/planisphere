@@ -211,6 +211,110 @@ func TestNodeLinesNameTheDeclaration(t *testing.T) {
 // ---------------------------------------------------------------------------
 // Requirement: A method belongs to its receiver's type
 
+// The calls a member records: the methods it calls on the receiver its own
+// declaration names.
+func TestMemberCalls(t *testing.T) {
+	g, _ := module(t, map[string]string{
+		"parser.go": "package m\n\ntype Parser struct{ s *Scanner }\n\n" +
+			"func (p *Parser) Statement() { p.Expr(); p.Expr(); Helper() }\n\n" +
+			"func (p *Parser) Expr() { p.s.Next() }\n\n" +
+			"func (Parser) Nameless() {}\n\n" +
+			"func Helper() {}\n",
+		"scanner.go": "package m\n\ntype Scanner struct{}\n\nfunc (s *Scanner) Next() {}\n",
+	})
+	calls := func(typ, member string) []string {
+		for _, n := range g.Nodes {
+			if n.Name != typ {
+				continue
+			}
+			for _, m := range n.Members {
+				if m.Name == member {
+					return m.Calls
+				}
+			}
+		}
+		t.Fatalf("no member %s.%s", typ, member)
+		return nil
+	}
+	// Written twice, recorded once; a package-level function is not a member.
+	if got := calls("Parser", "Statement"); len(got) != 1 || got[0] != "Expr" {
+		t.Errorf("Statement should call Expr once, got %v", got)
+	}
+	// `p.s.Next()` is a call on a field, not on the receiver.
+	if got := calls("Parser", "Expr"); len(got) != 0 {
+		t.Errorf("Expr should record no calls, got %v", got)
+	}
+	// A receiver with no name cannot be written in the body.
+	if got := calls("Parser", "Nameless"); len(got) != 0 {
+		t.Errorf("a nameless receiver should record no calls, got %v", got)
+	}
+}
+
+func TestMemberPoints(t *testing.T) {
+	g, dir := module(t, map[string]string{
+		"parser.go": "package m\n\ntype Parser struct{ s *Scanner }\n\n" +
+			"func (p *Parser) Statement(t Token) Token { Helper(); Helper(); return t }\n\n" +
+			"func (p *Parser) Expr() { p.s.Next() }\n\n" +
+			"func (p *Parser) Quiet() {}\n\n" +
+			"func (p *Parser) Self() *Parser { return p }\n\n" +
+			"func Helper() {}\n",
+		"scanner.go": "package m\n\ntype Scanner struct{}\n\nfunc (s *Scanner) Next() {}\n\ntype Token struct{}\n",
+	})
+	points := func(typ, member string) []string {
+		for _, n := range g.Nodes {
+			if n.Name != typ {
+				continue
+			}
+			for _, m := range n.Members {
+				if m.Name == member {
+					return m.Points
+				}
+			}
+		}
+		t.Fatalf("no member %s.%s", typ, member)
+		return nil
+	}
+	id := func(file, kind, name string) string {
+		return filepath.Join(dir, file) + "::" + kind + "::" + name
+	}
+	// A signature's type and a function the body calls, each recorded once
+	// however often the body writes it.
+	want := []string{id("scanner.go", "struct", "Token"), id("parser.go", "function", "Helper")}
+	got := points("Parser", "Statement")
+	sort.Strings(want)
+	sorted := append([]string(nil), got...)
+	sort.Strings(sorted)
+	if strings.Join(sorted, ",") != strings.Join(want, ",") {
+		t.Errorf("Statement should record %v, got %v", want, got)
+	}
+	// `p.s.Next()` is a call on a field: the type checker resolves it to
+	// `Scanner`, and it is the method that wrote it.
+	if got := points("Parser", "Expr"); len(got) != 1 || got[0] != id("scanner.go", "struct", "Scanner") {
+		t.Errorf("Expr should record Scanner, got %v", got)
+	}
+	if got := points("Parser", "Quiet"); len(got) != 0 {
+		t.Errorf("a method that names nothing outside should record nothing, got %v", got)
+	}
+	// A node has no edge to itself, so there is nothing for the member to name.
+	if got := points("Parser", "Self"); len(got) != 0 {
+		t.Errorf("a method naming its own type should record nothing, got %v", got)
+	}
+	// What a member records is an edge its own node has.
+	has := map[string]bool{}
+	for _, e := range g.Edges {
+		has[e.From+"\x00"+e.To] = true
+	}
+	for _, n := range g.Nodes {
+		for _, m := range n.Members {
+			for _, to := range m.Points {
+				if !has[n.ID+"\x00"+to] {
+					t.Errorf("%s.%s records %s, which its node has no edge to", n.Name, m.Name, to)
+				}
+			}
+		}
+	}
+}
+
 func TestMethods(t *testing.T) {
 	g, dir := module(t, map[string]string{
 		"server.go":      "package m\n\ntype Server struct{ log Logger }\n",

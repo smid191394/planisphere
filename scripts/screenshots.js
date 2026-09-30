@@ -49,6 +49,14 @@ const SHOTS = [
     artifact: "fixtures/rust/ripgrep/planisphere.json",
     rightClick: "SearcherBuilder",
   },
+  {
+    // What opening a type gives: the parser's methods as the grammar they
+    // follow, around the type, with the types they build pushed out around
+    // them. Opened the way a reader opens it — click, then the button.
+    file: "expand.jpg",
+    artifact: "fixtures/rust/sqlparser-ranger/planisphere.json",
+    expand: "Parser",
+  },
 ];
 
 /** The compiled host modules, loaded with a stand-in for the `vscode` module. */
@@ -231,6 +239,41 @@ async function shoot(browser, host, shot) {
         cy.panBy({ x: -covered / 2, y: 0 });
       },
       { name: shot.click, covered: panel.width + 24 }
+    );
+    await pg.waitForTimeout(800);
+  }
+
+  if (shot.expand) {
+    const at = await pg.evaluate((name) => {
+      const cy = window.__cy();
+      const node = cy.nodes(":visible").filter((n) => n.data("label") === name)[0];
+      if (!node) return null;
+      cy.center(node);
+      const box = cy.container().getBoundingClientRect();
+      const p = node.renderedPosition();
+      return { x: box.left + p.x, y: box.top + p.y };
+    }, shot.expand);
+    if (!at) throw new Error(`${shot.artifact}: no visible node named ${shot.expand}`);
+    await pg.mouse.click(at.x, at.y);
+    await pg.waitForSelector("#comment-expand:not(.hidden)");
+    await pg.click("#comment-expand");
+    await pg.waitForTimeout(2000);
+    // Framed on the tree the type is in: its members in the middle, and the
+    // types they build pushed out to a ring around them. Not on the type's
+    // neighbours — while it is open, its lines start at its members.
+    const panel = await pg.locator("#comment").boundingBox();
+    await pg.evaluate(
+      ({ name, covered }) => {
+        const cy = window.__cy();
+        const groups = window.__nodeGroups();
+        const node = cy.nodes(":visible").filter((n) => n.data("label") === name && !n.data("member"))[0];
+        const group = groups[node.id()] || node.id();
+        const inGroup = cy.nodes(":visible").filter((n) => (groups[n.id()] || n.id()) === group);
+        const members = cy.nodes(":visible").filter((n) => n.data("member"));
+        cy.fit(inGroup.union(members), 30);
+        cy.panBy({ x: -covered / 2, y: 0 });
+      },
+      { name: shot.expand, covered: panel.width + 24 }
     );
     await pg.waitForTimeout(800);
   }

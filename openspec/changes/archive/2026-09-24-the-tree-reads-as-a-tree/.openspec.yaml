@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-09-24
+goal: "An open type's tree is drawn as a tree: joined to the type at its first
+  level only, with a member that holds most of it beside the type"

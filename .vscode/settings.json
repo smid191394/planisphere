@@ -3,5 +3,12 @@
   // cpython's carries an Android testbed with a CMakeLists.txt in it. CMake
   // Tools finds that file and, since it is not at the root, asks on every
   // reload which CMakeLists.txt to configure. Nothing here is a CMake project.
-  "cmake.ignoreCMakeListsMissing": true
+  "cmake.ignoreCMakeListsMissing": true,
+
+  // There is no Cargo.toml at the root, and six under it: the Rust analyzer's
+  // own, and one in each Rust clone under fixtures/. Left to look for itself,
+  // rust-analyzer reports that it cannot discover a workspace; pointed at all
+  // of them, it would index and build five large projects that are here to be
+  // read, not edited. The one that is ours is named instead.
+  "rust-analyzer.linkedProjects": ["analyzers/rust/Cargo.toml"]
 }

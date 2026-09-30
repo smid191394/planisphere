@@ -37,7 +37,9 @@ Java analyzer needs `java` from a JDK — a runtime carrying the compiler module
 EOF
 }
 
-LANG=""
+# Not `LANG`: that is the locale every analyzer inherits, and emptying it puts
+# a JVM into the C locale, where a file whose name is not ASCII cannot be read.
+WANT=""
 ROOTS=()
 ARGS=()
 skip_next=0
@@ -51,13 +53,13 @@ for ((i = 1; i <= $#; i++)); do
   case "$a" in
     --lang)
       i=$((i + 1))
-      LANG="${!i-}"
-      if [ -z "$LANG" ]; then
+      WANT="${!i-}"
+      if [ -z "$WANT" ]; then
         echo "planisphere: --lang needs a language" >&2
         exit 2
       fi
       ;;
-    --lang=*) LANG="${a#--lang=}" ;;
+    --lang=*) WANT="${a#--lang=}" ;;
     -h | --help)
       usage
       exit 0
@@ -225,7 +227,7 @@ run_java() {
   PLANISPHERE_CWD="$PWD" exec java "$ROOT/analyzers/java/Analyzer.java" "${ARGS[@]}"
 }
 
-case "$LANG" in
+case "$WANT" in
   python | py) run_python ;;
   typescript | ts) run_typescript ;;
   go | golang) run_go ;;
@@ -233,7 +235,7 @@ case "$LANG" in
   java) run_java ;;
   "") ;;
   *)
-    echo "planisphere: unknown language '$LANG' (known: python, typescript, go, rust, java)" >&2
+    echo "planisphere: unknown language '$WANT' (known: python, typescript, go, rust, java)" >&2
     exit 2
     ;;
 esac

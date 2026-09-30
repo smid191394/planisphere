@@ -36,6 +36,7 @@
 //       the kind is one of four, and an ordered pair appears at most once
 //   A node may record the members that belong to it
 //       a member names a real line in its own file, and is not also a node
+//       what a member calls is its own node's members, each name once
 //   A unit above the file may be a node
 //       a `contains` edge never starts at a `function` or `file` node, and no
 //       node is the target of more than one. That a unit's line names it is the
@@ -352,8 +353,23 @@ function checkMembers(g, at) {
   // `MarkFlagRequired`, 99 such pairs across the four Go projects - and those
   // are two declarations. A name repeats in a file; a line cannot.
   const placed = new Set(g.nodes.map((n) => `${n.file}\u0000${n.line}`));
+  // What a member points at is which of its node's edges came from it, so
+  // every one of them has to be an edge that node has. A member says where a
+  // line starts; it does not add a line.
+  // The kind is not repeated there: the document carries at most one edge for
+  // an ordered pair, so the target names the edge.
+  const edgesFrom = new Map();
+  for (const e of g.edges) {
+    let out = edgesFrom.get(e.from);
+    if (!out) edgesFrom.set(e.from, (out = new Set()));
+    out.add(e.to);
+  }
   for (const n of g.nodes) {
     if (!n.members) continue;
+    // What a member calls is names of that node's own members: the structure a
+    // type is made of. A call reaching out of the node is the node's, and the
+    // document already carries it as an edge.
+    const own = new Set((n.members || []).map((m) => m.name));
     ok(Array.isArray(n.members), `${at} members is not an array`, n.id);
     for (const m of n.members || []) {
       ok(
@@ -381,6 +397,33 @@ function checkMembers(g, at) {
         `${at} member is also a node`,
         `${n.name}.${m.name} @ ${m.file}:${m.line}`
       );
+      if (m.calls === undefined) continue;
+      ok(Array.isArray(m.calls), `${at} member calls is not an array`, `${n.name}.${m.name}`);
+      const seen = new Set();
+      for (const called of m.calls || []) {
+        ok(
+          typeof called === "string" && own.has(called),
+          `${at} member calls something that is not a member of its node`,
+          `${n.name}.${m.name} -> ${called}`
+        );
+        ok(!seen.has(called), `${at} member records one call twice`, `${n.name}.${m.name} -> ${called}`);
+        seen.add(called);
+      }
+    }
+    for (const m of n.members || []) {
+      if (m.points === undefined) continue;
+      ok(Array.isArray(m.points), `${at} member points is not an array`, `${n.name}.${m.name}`);
+      const out = edgesFrom.get(n.id) || new Set();
+      const seen = new Set();
+      for (const to of m.points || []) {
+        ok(
+          typeof to === "string" && to !== n.id && out.has(to),
+          `${at} member points at something its node has no edge for`,
+          `${n.name}.${m.name} -> ${to}`
+        );
+        ok(!seen.has(to), `${at} member records one target twice`, `${n.name}.${m.name} -> ${to}`);
+        seen.add(to);
+      }
     }
   }
 }

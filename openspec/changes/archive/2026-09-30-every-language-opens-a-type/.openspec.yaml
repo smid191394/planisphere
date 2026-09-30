@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-09-30
+goal: Python and TypeScript record a class's methods as members, with what they
+  call and what they point at, so a type can be opened in every language

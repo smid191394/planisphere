@@ -9,6 +9,12 @@ pub struct Member {
     pub name: String,
     pub file: String,
     pub line: usize,
+    /// The members of the same type this one calls, by name.
+    pub calls: Vec<String>,
+    /// The nodes this member's signature and body name, by id. Each one is a
+    /// target its own node has an edge to; the member says which method that
+    /// edge came from.
+    pub points: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -79,11 +85,24 @@ pub fn encode(g: &Graph) -> String {
                     .members
                     .iter()
                     .map(|m| {
-                        Json::Obj(vec![
+                        let mut fields = vec![
                             ("name", Json::Str(&m.name)),
                             ("file", Json::Str(&m.file)),
                             ("line", Json::Num(m.line)),
-                        ])
+                        ];
+                        if !m.calls.is_empty() {
+                            fields.push((
+                                "calls",
+                                Json::Arr(m.calls.iter().map(|c| Json::Str(c)).collect()),
+                            ));
+                        }
+                        if !m.points.is_empty() {
+                            fields.push((
+                                "points",
+                                Json::Arr(m.points.iter().map(|p| Json::Str(p)).collect()),
+                            ));
+                        }
+                        Json::Obj(fields)
                     })
                     .collect();
                 f.push(("members", Json::Arr(members)));

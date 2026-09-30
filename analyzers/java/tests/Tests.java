@@ -112,6 +112,38 @@ public class Tests {
       return ((List<Object>) n.get("members")).stream()
           .map(m -> (String) ((Map<String, Object>) m).get("name")).sorted().collect(Collectors.toList());
     }
+    @SuppressWarnings("unchecked")
+    List<String> calls(String id, String member) {
+      Map<String, Object> n = node(id);
+      if (n == null || n.get("members") == null) return List.of();
+      for (Object o : (List<Object>) n.get("members")) {
+        Map<String, Object> m = (Map<String, Object>) o;
+        if (member.equals(m.get("name"))) {
+          Object c = m.get("calls");
+          return c == null ? List.of() : (List<String>) c;
+        }
+      }
+      return List.of();
+    }
+    @SuppressWarnings("unchecked")
+    List<String> points(String id, String member) {
+      Map<String, Object> n = node(id);
+      if (n == null || n.get("members") == null) return List.of();
+      for (Object o : (List<Object>) n.get("members")) {
+        Map<String, Object> m = (Map<String, Object>) o;
+        if (member.equals(m.get("name"))) {
+          Object c = m.get("points");
+          return c == null ? List.of() : (List<String>) c;
+        }
+      }
+      return List.of();
+    }
+    /** Every ordered pair the document holds an edge for. */
+    java.util.Set<String> edgePairs() {
+      java.util.Set<String> out = new java.util.HashSet<>();
+      for (Map<String, Object> e : edges) out.add(e.get("from") + "\n" + e.get("to"));
+      return out;
+    }
     Object field(String id, String key) {
       Map<String, Object> n = node(id);
       return n == null ? null : n.get(key);
@@ -203,6 +235,8 @@ class Rules extends Tests {
     nodesAndNames();
     visibility();
     members();
+    memberCalls();
+    memberPoints();
     packages();
     edges();
     edgeKinds();
@@ -341,6 +375,29 @@ class Rules extends Tests {
 
   // -- members ---------------------------------------------------------------
 
+  static void memberCalls() {
+    suite("members: what one member calls of its own type");
+    Project p = new Project("src/a/Parser.java", String.join("\n",
+        "package a;",
+        "public class Parser {",
+        "  private Scanner scanner = new Scanner();",
+        "  public void statement() { expr(); expr(); this.helper(); scanner.next(); }",
+        "  public void expr() { free(); }",
+        "  private void helper() {}",
+        "  private void free() {}",
+        "  static void free2() {}",
+        "}",
+        "class Scanner { void next() {} }", ""));
+    Doc d = p.doc();
+    String parser = p.id("src/a/Parser.java", "class", "Parser");
+    // Written twice, recorded once; `this.helper()` counts as much as a bare call.
+    eq(d.calls(parser, "statement"), List.of("expr", "helper"),
+        "a bare call and a call on this are both calls of the type's own member");
+    eq(d.calls(parser, "expr"), List.of("free"), "a private method is a member like any other");
+    // `scanner.next()` is a call on a field: the type keeps that edge, the member does not.
+    eq(d.calls(parser, "helper"), List.of(), "a method that calls nothing of its own records nothing");
+  }
+
   static void members() {
     suite("members: methods and constructors");
     Project p = new Project("src/a/Thing.java", String.join("\n",
@@ -361,6 +418,43 @@ class Rules extends Tests {
     eq(d.members(p.id(f, "class", "Thing.Inner")), List.of("hop"), "a nested type's methods belong to it");
     ok(!d.members(p.id(f, "class", "Thing")).contains("count"), "fields are not members");
     eq(d.members(p.id(f, "enum", "Colour")), List.of("shine"), "enum constants are not members");
+  }
+
+  static void memberPoints() {
+    suite("members: what one member points at outside its own type");
+    Project p = new Project("src/a/Parser.java", String.join("\n",
+        "package a;",
+        "public class Parser {",
+        "  private Scanner scanner = new Scanner();",
+        "  public Token statement(Token t) { Scanner s = scanner; s.next(); Scanner again = s; return t; }",
+        "  public void quiet() {}",
+        "  public void onlyField() { scanner.next(); }",
+        "  public Parser self() { return this; }",
+        "}",
+        "class Scanner { void next() {} }",
+        "class Token {}", ""));
+    Doc d = p.doc();
+    String parser = p.id("src/a/Parser.java", "class", "Parser");
+    String scanner = p.id("src/a/Parser.java", "class", "Scanner");
+    String token = p.id("src/a/Parser.java", "class", "Token");
+    // A signature's type and a call on a field, each recorded once however
+    // often the body writes it.
+    eq(d.points(parser, "statement").stream().sorted().collect(Collectors.toList()),
+        List.of(scanner, token).stream().sorted().collect(Collectors.toList()),
+        "a method records the types its signature and body name");
+    eq(d.points(parser, "quiet"), List.of(), "a method that names nothing outside records nothing");
+    // A call on a field names a method, not a type: the edge the field gives
+    // the type stays the type's alone.
+    eq(d.points(parser, "onlyField"), List.of(), "a call on a field is not a name this analyzer reads as a type");
+    // A node has no edge to itself, so there is nothing for the member to name.
+    eq(d.points(parser, "self"), List.of(), "a method naming its own type records nothing");
+    // What a member records is an edge its own node has.
+    java.util.Set<String> pairs = d.edgePairs();
+    for (String member : List.of("statement", "quiet", "self", "onlyField")) {
+      for (String to : d.points(parser, member)) {
+        ok(pairs.contains(parser + "\n" + to), member + " records " + to + ", which its type has no edge to");
+      }
+    }
   }
 
   // -- packages --------------------------------------------------------------

@@ -850,7 +850,7 @@ What counts as the codebase's plumbing SHALL be the artifact's answer where the 
 
 Each part answers a way a simpler criterion goes wrong. Ranking by how much of the graph a node can reach along directed edges measures the end of the deepest dependency chain: on six projects with an agreed subject it names two of them, and calls Flask's centre its CLI command group, Pydantic's a private helper, Scrapy's an HTTP download handler and Django's an admin class. Nearness rather than reach, because a centre should be near the thing it is the centre of. Weighted by size because a subject is a substantial class and not a two-line helper, and weighted by its logarithm so that size settles a tie between comparably central classes rather than deciding against a much more central one. It is a product and a large enough ratio wins eventually; the ratios that arise between real candidates do not reach it — Pydantic's two contenders differ by 1.4. Excluding private names because Pydantic's answer is otherwise `_Pipeline`, and exceptions because Django's `ImproperlyConfigured` otherwise outranks `Model`.
 
-How much of a type there is SHALL be the lines of its declaration and one for each member the artifact records outside those lines. Where a language writes a type's methods apart from its declaration, the declaration is not the type: sqlparser-ranger's `Parser` is declared in 6 lines and has 69 methods in `impl` blocks, while `TokenKind` is 205 lines of variants, and measured by lines alone the drawing would be centred on `TokenKind`. A member written inside the declaration — a Rust trait's methods, 590 of syn's and 125 of tokio's — is already counted by its lines and SHALL NOT be counted again. A member counts one and not its own lines, because the size enters as a logarithm to settle ties and a count is enough for that; counting a method's lines as well chooses the same primary centre on all nine Go and Rust fixtures. An artifact that records no members is sized by its lines alone: none of the eight Python and four TypeScript fixtures carries one. On Go and Rust, counting members decides the primary centre on four of nine: sqlparser-ranger's is `Parser`, hugo's `HugoSites`, prometheus's `Head`, and gin's `Context` rather than `Engine`.
+How much of a type there is SHALL be the lines of its declaration and one for each member the artifact records outside those lines. Where a language writes a type's methods apart from its declaration, the declaration is not the type: sqlparser-ranger's `Parser` is declared in 6 lines and has 69 methods in `impl` blocks, while `TokenKind` is 205 lines of variants, and measured by lines alone the drawing would be centred on `TokenKind`. A member written inside the declaration — a Rust trait's methods, 590 of syn's and 125 of tokio's — is already counted by its lines and SHALL NOT be counted again. A member counts one and not its own lines, because the size enters as a logarithm to settle ties and a count is enough for that; counting a method's lines as well chooses the same primary centre on all nine Go and Rust fixtures. An artifact that records no members is sized by its lines alone, and so, in effect, is one whose every member is written inside its declaration: a Python or TypeScript method is always inside its class, and counting members moves none of the eight Python and four TypeScript centres. On Go and Rust, counting members decides the primary centre on four of nine: sqlparser-ranger's is `Parser`, hugo's `HugoSites`, prometheus's `Head`, and gin's `Context` rather than `Engine`.
 
 The criterion SHALL be judged on the drawing it produces as well as the name it returns. Out-reach roots the tree at a leaf of one subsystem: Pydantic comes out as twelve children with 97% of the drawing hanging off one of them, CPython as two with 97%, Flask as four with 90% — the first rings empty and the picture starting somewhere out at the fourth.
 
@@ -2279,4 +2279,243 @@ A group has as many comments as it has members and no reason to prefer one, so n
 #### Scenario: The file's name decides nothing
 - **WHEN** the same comment and definition are read from files with different extensions
 - **THEN** the same lines are shown for each
+
+### Requirement: A type can be opened where it stands
+Where a focused node records members that record anything of their own — calls between them, or nodes they point at — the viewer SHALL offer to open that node where it stands, and SHALL then draw one node for each of its members' names in the place the type occupies, with the rest of the drawing around them.
+
+The type's own node SHALL stay, and everything that points at it SHALL keep pointing at it. A member is not something another node points at, and a type that disappeared when opened would take every line into it off the drawing.
+
+While a type is open, the viewer SHALL draw:
+
+- a line from a member to each member of the same type it calls;
+- a line from a member to each node it records as pointing at, drawn as the type's own edge to that node is drawn;
+- the type's own outgoing edges from the members that record them, and from the type itself where no member does — a field's type, a signature, a supertype.
+
+That is what a reader opens a type for: `Parser` points at `Scanner`, and the line now starts at the method that names it.
+
+A member drawn this way SHALL carry that member's name, and activating it twice SHALL open the file and line the member records. Where a name stands for several members, the viewer SHALL draw one node for the name and open the first of them.
+
+A member drawn this way SHALL NOT be hidden by the control that hides functions. That control answers whether the reader wants the project's functions drawn; a member is on screen because the reader opened the type that holds it.
+
+Any number of types MAY be open at once, and each SHALL be drawn the same way. Two types opened together are how a reader sees how they interlock.
+
+The reader SHALL be able to close an opened type and get the drawing back as it was. Where the viewer closes one thing at a time, an opened type SHALL be closed after the views that cover the drawing, most recently opened first, so that a reader who opened three types closes them one at a time rather than losing all of them at once.
+
+The offer SHALL NOT be made for a node that stands for several types, there being no single type to open, nor where the node's members record nothing between them and nothing outside.
+
+#### Scenario: Opening a type in place
+- **WHEN** the reader focuses a node whose members record calls or targets and asks to open it where it stands
+- **THEN** one node per member name is drawn in the type's place, and the rest of the drawing is still around them
+
+#### Scenario: The type is still there
+- **WHEN** a type is open and another node points at it
+- **THEN** that line still runs to the type's own node
+
+#### Scenario: A line that comes from a method
+- **WHEN** a member of an open type records a node it points at
+- **THEN** a line is drawn from that member to that node
+
+#### Scenario: A line no member accounts for
+- **WHEN** an open type has an outgoing edge that none of its drawn members records
+- **THEN** that line is drawn from the type itself
+
+#### Scenario: The calls inside the type
+- **WHEN** a member of an open type calls another member of it
+- **THEN** a line is drawn between those two members
+
+#### Scenario: A member opens its source
+- **WHEN** the reader activates a drawn member twice
+- **THEN** the file and line that member records are opened
+
+#### Scenario: Functions hidden, members drawn
+- **WHEN** a type is open and the reader has the project's functions hidden
+- **THEN** the type's members stay on the drawing
+
+#### Scenario: Two types open at once
+- **WHEN** the reader opens a second type while one is open
+- **THEN** both are drawn with their members, and neither closes the other
+
+#### Scenario: Closing gives the drawing back
+- **WHEN** the reader closes an open type
+- **THEN** its members are gone, the type's own edges are drawn from the type again, and the drawing is as it was
+
+#### Scenario: Closing one at a time
+- **WHEN** the reader has opened more than one type and closes with the key that leaves a view
+- **THEN** the most recently opened type closes, and the others stay open
+
+#### Scenario: A folded group is not opened
+- **WHEN** the focused node stands for several types
+- **THEN** the offer is not made
+
+#### Scenario: Nothing to show
+- **WHEN** a node's members record no calls between them and no nodes they point at
+- **THEN** the offer is not made, and the panel's list is what the reader has
+
+### Requirement: A type can be drawn alone, as the tree its members make
+Where a focused node records members that call one another, the viewer SHALL offer a view of that node alone, and show in it one node for each of its members' names, joined by the calls they record.
+
+The view SHALL be entered from the focused node and left the way the right button's view is left, saying where the reader is and taking them back. What is drawn outside it is untouched: this is a place the reader goes and returns from, not a change to the drawing.
+
+A member's node SHALL carry that member's name, and activating it twice SHALL open the file and line the member records, as activating a node twice opens a node's. Where a name stands for several members — a language that overloads one — the view SHALL draw one node for the name, and opening it SHALL take the reader to the first of them; a list of the rest belongs to a later change, not to a node drawn twice.
+
+The view SHALL draw the node it was opened on at its centre, and its members as the tree they are arranged as when that node is opened where it stands: the way in on the first level out — a member that no member of that node calls — and what each member calls beyond it. It is the same tree in both places, alone here and with the project around it there, so a reader learns one shape.
+
+The way in is what the tree grows from. Measured on sqlparser-ranger's `Parser`, whose 69 members make 342 calls, the member with the most calls to it is `eat`, a one-line helper every rule uses, and grown from there the grammar the parser follows sits behind it; grown from `sql_stmt_list`, which nothing calls, the same members read as the rules it parses. Where several members are ways in, the criterion that chooses every other centre SHALL choose among them. Where there is none — every member is called by another — the view SHALL fall back to that criterion over all of them rather than refusing to open.
+
+The offer SHALL NOT be made where there is nothing to show: a node whose members record no calls between them has a list, which the panel already gives.
+
+#### Scenario: Opening a type that is made of its members
+- **WHEN** the reader focuses a node whose members call one another and asks for what it is made of
+- **THEN** the view opens, holding one node per member name and the calls between them
+
+#### Scenario: The node is the centre
+- **WHEN** the view opens on a node
+- **THEN** that node is the centre, and its members are arranged around it
+
+#### Scenario: The way in is next to the node
+- **WHEN** the view opens on a node whose members include one that no other member calls
+- **THEN** that member is on the first level out from the node, and what it calls lies beyond it
+
+#### Scenario: Several ways in
+- **WHEN** more than one member is called by none
+- **THEN** the way in is chosen among them by the criterion that chooses a drawing's centre
+
+#### Scenario: No way in
+- **WHEN** every member of the node is called by another
+- **THEN** the view still opens, its way in chosen by that same criterion over all of them
+
+#### Scenario: Leaving the view
+- **WHEN** the reader leaves the view
+- **THEN** the drawing is as it was before they entered, and the strip that says where they are is gone
+
+#### Scenario: A member opens its source
+- **WHEN** the reader activates a member's node twice
+- **THEN** the file and line that member records are opened
+
+#### Scenario: A name that several members share
+- **WHEN** the node declares several members under one name
+- **THEN** the view draws that name once
+
+#### Scenario: Nothing to show
+- **WHEN** the focused node's members record no calls between them
+- **THEN** the view is not offered, and the panel's list is what the reader has
+
+### Requirement: An open type's members are arranged as a tree, and the drawing makes room for it
+The viewer SHALL arrange an open type's members as a tree rooted on the type: the way in hangs off the type, the members it calls hang off it, and so on outward. A member no chain of calls reaches SHALL hang off the type beside the way in.
+
+The way in SHALL be chosen as it is for the view of one type alone: a member that no member of that type calls; where there are several, the criterion that chooses a drawing's centre chooses among them; where there is none, that criterion over all of them.
+
+The type SHALL be drawn joined to the first level of its tree and to nothing further out; a member further out SHALL be joined to the members that call it. Every member belongs to its type, and the layout knows it, but drawn, those joins are a line from the type to every member — sixty-nine out of `Parser` — and the tree is under them.
+
+A member whose subtree holds more than half of the tree SHALL be drawn beside the type rather than on the first level, and the members it calls SHALL make the first level around both. A tree drawn round a centre puts each node in the middle of its slice, and the middle of a slice wider than half the circle is on the far side from half of what it holds: `sql_stmt_list`, which reaches 63 of `Parser`'s 69 members, would sit at one edge of the drawing with every line out of it crossing to the other.
+
+That is what a reader opens a type for. Seated in a circle instead, sqlparser-ranger's `Parser` shows its 69 rules in the order their ids sort, with the calls between them drawn as chords across the circle — the same lines, saying nothing about which rule contains which.
+
+The viewer SHALL make room for that tree by moving what is around the type outward. Each node SHALL keep its direction from the opened type and SHALL move further the nearer it is, by an amount that reaches zero at a bounded multiple of the room the tree needs. Two nodes SHALL NOT change places with one another: what was nearer the opened type stays nearer, and what was on one side stays on that side. Beyond that multiple nothing SHALL move, so that a reader who knows where something sits still finds it there.
+
+An open type's own members SHALL NOT be moved by the room made for them.
+
+Closing a type SHALL give back the positions the drawing had before it was opened.
+
+#### Scenario: The members are arranged by what they call
+- **WHEN** a type is open and one of its members calls another
+- **THEN** the called member is placed further from the type than the member that calls it
+
+#### Scenario: The way in is next to the type
+- **WHEN** a type whose members include one that no member calls is opened
+- **THEN** that member is placed on the first level out from the type
+
+#### Scenario: A member nothing reaches
+- **WHEN** an open type has a member that no chain of calls from the way in reaches
+- **THEN** it is placed on the first level out from the type as well
+
+#### Scenario: Room is made
+- **WHEN** a type is opened
+- **THEN** no node that is not one of its members stands within the room its member tree takes
+
+#### Scenario: Directions are kept
+- **WHEN** a type is opened
+- **THEN** every other node lies in the same direction from that type as it did before
+
+#### Scenario: Nothing changes places
+- **WHEN** a type is opened
+- **THEN** for any two nodes in the same direction from it, the nearer one is still the nearer one
+
+#### Scenario: The far drawing stays put
+- **WHEN** a type is opened
+- **THEN** a node far enough from it is exactly where it was
+
+#### Scenario: Closing gives the space back
+- **WHEN** an open type is closed
+- **THEN** every node is where it was before it was opened
+
+#### Scenario: The type is joined to its first level
+- **WHEN** a type is open
+- **THEN** a line runs from the type to each member on the first level of its tree, and to no member further out
+
+#### Scenario: A member further out is joined to what calls it
+- **WHEN** a member of an open type is beyond the first level
+- **THEN** the line that reaches it comes from a member that calls it
+
+#### Scenario: One member holds most of the tree
+- **WHEN** one member's subtree holds more than half of an open type's members
+- **THEN** that member is drawn beside the type, and what it calls is on the first level around them
+
+#### Scenario: No member holds most of it
+- **WHEN** no member's subtree holds more than half of an open type's members
+- **THEN** every way in is on the first level, each in its own slice
+
+### Requirement: The two ways of reading a type are beside its name, and on a key
+Where the panel lists a type's members, the viewer SHALL offer the two ways of reading that type — its members drawn where it stands, and drawn alone — as controls beside the type's name at the head of the panel, and not among the members or under the comment. A control under the comment moves with the comment's length, and a type with a paragraph of documentation would have it out of sight. Each control SHALL be shown only where the way it offers is available for that type, and SHALL say what it does and which key does the same.
+
+The control for drawing members where the type stands SHALL be a toggle: pressed while that type is open, and pressing it again SHALL put the members away.
+
+The viewer SHALL bind a key to each, acting on the focused node as the key that makes a node the centre does: `E` SHALL open the focused type where it stands, or put it away if it is open, and `M` SHALL draw its members alone. Where nothing is focused, or the focused node has nothing to draw, the key SHALL do nothing. Both keys SHALL be named in the legend.
+
+A press SHALL be counted against the drawing it is made on. When the drawing is replaced — leaving a view, entering one, or a new artifact — the first press on a node SHALL focus it, as a first press does, and SHALL NOT open its file as though it were the second.
+
+#### Scenario: Beside the name
+- **WHEN** the reader focuses a type whose members record something to draw
+- **THEN** the two controls are shown beside its name, and the member list holds only its members
+
+#### Scenario: Nothing to draw
+- **WHEN** the reader focuses a node whose members record nothing to draw, or a node that stands for several types
+- **THEN** neither control is shown
+
+#### Scenario: The toggle shows what is open
+- **WHEN** the reader opens the focused type where it stands
+- **THEN** its control is shown pressed, and pressing it again puts the members away
+
+#### Scenario: The keys
+- **WHEN** a type is focused and the reader presses `E`, then `E` again
+- **THEN** the type opens where it stands, and then closes
+
+#### Scenario: Drawn alone by key
+- **WHEN** a type is focused and the reader presses `M`
+- **THEN** its members are drawn alone
+
+#### Scenario: The legend names them
+- **WHEN** the reader opens the legend
+- **THEN** `E` and `M` are listed with the other keys
+
+#### Scenario: Back from a view
+- **WHEN** the reader pressed a node once, entered a view, and left it
+- **THEN** pressing that node focuses it, and only a second press opens its file
+
+### Requirement: A member's place says how near the way in it is, not whose it is
+A member of an open type SHALL be placed at the fewest calls it is from the way in: a member the way in calls is on the level after it, a member only those call on the level after that, and so on. Calls between members are a graph and a member called from several places has no one owner, so a place in the tree SHALL NOT be taken to say which member it belongs to, and every member that calls it SHALL be joined to it by a line.
+
+Among the callers equally near the way in, the one a member is placed beside SHALL be chosen by a fixed order, so that the same artifact is drawn the same way every time. The choice claims nothing: `expr` is called by 23 of sqlparser-ranger's `Parser`'s rules, and whichever of them it is drawn beside, the other twenty-two lines are drawn.
+
+The shortest distance is chosen over the longest, and what it costs is accepted: a member called from everywhere is drawn near the way in, because that is how near it is. The longest distance would put every member below everything that calls it, at the price of the whole tree — `Parser` sixteen levels deep instead of six — and of breaking recursion at a point the code does not choose. It is also the rule the type tree follows, so the drawing has one meaning of depth.
+
+The placement SHALL NOT read a project's habits: no share of callers that sets a member apart, no preference among callers by name. Those work for one project and not for the next.
+
+#### Scenario: A member called from several places
+- **WHEN** a member of an open type is called by several members at different distances from the way in
+- **THEN** it is placed one level beyond the nearest of them, and a line joins it to every one of them
+
+#### Scenario: Callers equally near
+- **WHEN** a member is called by two members on the same level
+- **THEN** it is placed beside one of them, chosen by a fixed order, and the same artifact places it beside the same one every time
 

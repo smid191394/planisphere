@@ -53,19 +53,20 @@ artifact is made from, and the commit it was measured at where it records one.
 
 ## Screenshots
 
-The README's images are the viewer's own page, drawn from three fixtures:
-`fixtures/python/fastapi`, `fixtures/go/cobra` and `fixtures/rust/ripgrep`, each
-with its `planisphere.json` generated. Playwright drives a headless Chromium,
-installed once:
+The README's images are the viewer's own page, drawn from four fixtures:
+`fixtures/python/fastapi`, `fixtures/go/cobra`, `fixtures/rust/ripgrep` and
+`fixtures/rust/sqlparser-ranger`, each with its `planisphere.json` generated.
+Playwright drives a headless Chromium, installed once:
 
 ```bash
 npx playwright-core install chromium
-npm run screenshots                  # writes overview.jpg, focus.jpg and reach.jpg
+npm run screenshots                  # writes overview.jpg, focus.jpg, reach.jpg and expand.jpg
 ```
 
 Run it again when the drawing's look changes, and look at the images before
 committing them. The first one presses the rail's `Show functions` button before
-it is taken; the other two leave the drawing as it opens.
+it is taken; the last clicks `Parser` and presses the button beside its name that
+expands its members; the other two leave the drawing as it opens.
 
 The banner at the top of the README is made from the mascot with the five
 languages ringed around it, and the name beside it, laid out in the same

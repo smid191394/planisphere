@@ -94,6 +94,8 @@ func Analyze(roots []string) (*Graph, error) {
 		a.relate(p)
 	}
 	a.packageEdges()
+	a.keepCallsToOwnMembers()
+	a.keepPointsToOwnEdges()
 
 	g := &Graph{Nodes: a.nodes, Edges: []Edge{}}
 	if g.Nodes == nil {
@@ -368,6 +370,95 @@ func (a *analysis) addNode(n Node, pkg string) {
 
 func makeID(file, kind, name string) string { return file + "::" + kind + "::" + name }
 
+// callsOnReceiver is what a method calls on the receiver its own declaration
+// names, in the order the body writes them, once each.
+//
+// Recognised by what the source writes rather than by what a type says: the
+// receiver's name is at the top of the method — `c`, `cmd`, `f` — so a call on
+// it names a method of the same type or none. A call on a field, on a parameter
+// or on another value of the same type is the type's, and stays where the rest
+// of a body's names go. A receiver declared without a name can be written by
+// nothing, so such a method calls nothing here.
+//
+// Whether the named method is the type's own is settled later, against the
+// members that were collected: a type's methods are spread across the files of
+// a package, and the answer is not known while one file is being read.
+func callsOnReceiver(d *ast.FuncDecl) []string {
+	if d.Recv == nil || len(d.Recv.List) == 0 || len(d.Recv.List[0].Names) == 0 {
+		return nil
+	}
+	recv := d.Recv.List[0].Names[0].Name
+	if recv == "_" || recv == "" {
+		return nil
+	}
+	var found []string
+	seen := map[string]bool{}
+	ast.Inspect(d.Body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		ident, ok := sel.X.(*ast.Ident)
+		if !ok || ident.Name != recv || seen[sel.Sel.Name] {
+			return true
+		}
+		seen[sel.Sel.Name] = true
+		found = append(found, sel.Sel.Name)
+		return true
+	})
+	return found
+}
+
+// keepCallsToOwnMembers drops from every member the names that are not members
+// of the same node. A type's methods are spread across the files of a package,
+// so what the type is made of is known only once every file has been read.
+// keepPointsToOwnEdges drops from every member what its node ends up with no
+// edge to. A name is resolved while a method is read, and whether the type
+// carries an edge for it is settled later: a package edge is weakened, a
+// target may be no node at all, and a name reaching the type itself is no
+// edge.
+func (a *analysis) keepPointsToOwnEdges() {
+	for i := range a.nodes {
+		for j := range a.nodes[i].Members {
+			kept := a.nodes[i].Members[j].Points[:0]
+			for _, to := range a.nodes[i].Members[j].Points {
+				if _, ok := a.edges[[2]string{a.nodes[i].ID, to}]; ok {
+					kept = append(kept, to)
+				}
+			}
+			if len(kept) == 0 {
+				kept = nil
+			}
+			a.nodes[i].Members[j].Points = kept
+		}
+	}
+}
+
+func (a *analysis) keepCallsToOwnMembers() {
+	for i := range a.nodes {
+		own := map[string]bool{}
+		for _, m := range a.nodes[i].Members {
+			own[m.Name] = true
+		}
+		for j := range a.nodes[i].Members {
+			kept := a.nodes[i].Members[j].Calls[:0]
+			for _, c := range a.nodes[i].Members[j].Calls {
+				if own[c] {
+					kept = append(kept, c)
+				}
+			}
+			if len(kept) == 0 {
+				kept = nil
+			}
+			a.nodes[i].Members[j].Calls = kept
+		}
+	}
+}
+
 // addMember records something that belongs to a node without being one. A Go
 // method is its receiver's, so the receiver is where a reader looks for it:
 // nothing else in the document names a method, and without members, searching
@@ -591,13 +682,24 @@ func (a *analysis) relate(p *pkgInfo) {
 				// files in name order, so a type's methods come out in the
 				// order the source declares them. A method named `_` can be
 				// called by nothing and is left out, as `func _` is.
-				if d.Recv != nil && d.Name.Name != "_" {
-					pos := a.fset.Position(d.Name.Pos())
-					a.addMember(owner, Member{Name: d.Name.Name, File: pos.Filename, Line: pos.Line})
-				}
 				w := &walker{a: a, p: p, owner: owner}
+				member := d.Recv != nil && d.Name.Name != "_"
+				var points []string
+				if member {
+					w.points = &points
+				}
 				w.walk(d.Type, "references")
 				w.walk(d.Body, "uses")
+				if member {
+					pos := a.fset.Position(d.Name.Pos())
+					a.addMember(owner, Member{
+						Name:   d.Name.Name,
+						File:   pos.Filename,
+						Line:   pos.Line,
+						Calls:  callsOnReceiver(d),
+						Points: points,
+					})
+				}
 			}
 		}
 	}
@@ -687,6 +789,10 @@ type walker struct {
 	a     *analysis
 	p     *pkgInfo
 	owner string
+	// Where the names this walker resolves are also written down, for a walk
+	// that covers one method: what the member points at. Nil for a walk that
+	// speaks for the whole type.
+	points *[]string
 }
 
 func (w *walker) ref(id *ast.Ident, kind string) {
@@ -694,7 +800,17 @@ func (w *walker) ref(id *ast.Ident, kind string) {
 	if obj == nil {
 		return
 	}
-	w.a.addEdge(w.owner, w.a.target(obj), kind)
+	to := w.a.target(obj)
+	w.a.addEdge(w.owner, to, kind)
+	if w.points == nil || to == "" || to == w.owner {
+		return
+	}
+	for _, seen := range *w.points {
+		if seen == to {
+			return
+		}
+	}
+	*w.points = append(*w.points, to)
 }
 
 func isNil(n ast.Node) bool {

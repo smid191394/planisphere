@@ -47,6 +47,24 @@
   let reachReturnView = null;
   /** Whether functions were hidden when the view opened, which leaving restores. */
   let reachReturnFns = true;
+  /** The node whose members are drawn as a graph of their own, or null. */
+  let insideOf = null;
+  /** What the drawing was before that view was entered. */
+  let insideReturn = null;
+  /**
+   * The types whose members are drawn where the type stands, in the order the
+   * reader opened them.
+   * @type {string[]}
+   */
+  let openTypes = [];
+  /**
+   * The centre while that view is up.
+   *
+   * Not `settings.centre`: a member's id belongs to a drawing built here and
+   * to no artifact, and settings follow the reader from one project to the
+   * next. Saved, it would name a node nothing has.
+   */
+  let insideCentre = null;
   /**
    * How far the whole drawing's own framing zooms, measured as the view opens
    * while the whole drawing is still what is drawn. Clamped each time the view
@@ -236,7 +254,7 @@
    * ignored, and the automatic choice stands.
    */
   function chosenCentre(graph) {
-    const want = settings.centre;
+    const want = insideCentre || settings.centre;
     if (!want || !graph || !graph.nodes) return null;
     for (const n of graph.nodes) if (n.id === want) return want;
     return null;
@@ -875,6 +893,10 @@
    * nothing written on it anywhere, and the viewer uses it for something else.
    */
   const CENTRE_KEY = "c";
+  /** Expand the focused type's members where it stands, or put them away. */
+  const EXPAND_KEY = "e";
+  /** Draw the focused type's members alone. */
+  const ONLY_KEY = "m";
   /**
    * Chars needed before live search highlighting kicks in. Below this a
    * single letter would match most of the graph and dim almost nothing,
@@ -939,11 +961,18 @@
    * call stack, and guarded against cycles because a malformed parent map must
    * not hang the viewer.
    *
+   * A node may ask for more than one leaf's worth of the ring: an open type
+   * carries a ring of its own members, and the space that ring needs is space
+   * the nodes beside it have to give up. `weightOf` is how it asks, in the
+   * same unit everything else is measured in — one leaf, one seat.
+   *
    * @param {Record<string, string[]>} childrenOf
    * @param {string} root
+   * @param {(id: string) => number} [weightOf]
    * @returns {Record<string, number>}
    */
-  function leafCounts(childrenOf, root) {
+  function leafCounts(childrenOf, root, weightOf) {
+    const weight = (id) => (weightOf ? Math.max(1, weightOf(id)) : 1);
     /** @type {Record<string, number>} */
     const counts = {};
     const seen = new Set();
@@ -953,7 +982,7 @@
       const [id, expanded] = stack.pop();
       const kids = childrenOf[id] || [];
       if (kids.length === 0) {
-        counts[id] = 1;
+        counts[id] = weight(id);
         continue;
       }
       if (!expanded) {
@@ -967,10 +996,23 @@
       } else {
         let total = 0;
         for (const k of kids) total += counts[k] !== undefined ? counts[k] : 1;
-        counts[id] = total;
+        // A parent needs room for its own ring as well as for its children's.
+        counts[id] = Math.max(total, weight(id));
       }
     }
     return counts;
+  }
+
+  /** Which nodes of this drawing are members, built once per graph. */
+  const memberIdCache = new WeakMap();
+  function drawnMemberIds(graph) {
+    let ids = memberIdCache.get(graph);
+    if (!ids) {
+      ids = new Set();
+      for (const n of graph.nodes) if (n.member) ids.add(n.id);
+      memberIdCache.set(graph, ids);
+    }
+    return ids;
   }
 
   /**
@@ -1321,6 +1363,8 @@
   const settingsSaveEl = document.getElementById("settings-save");
   const settingsDirtyEl = document.getElementById("settings-dirty");
   const commentTitleEl = document.getElementById("comment-title");
+  const commentExpandEl = document.getElementById("comment-expand");
+  const commentOnlyEl = document.getElementById("comment-only");
   const commentBodyEl = document.getElementById("comment-body");
   const commentMembersEl = document.getElementById("comment-members");
   const emptyEl = document.getElementById("empty");
@@ -1615,9 +1659,17 @@
       units = new Set();
       const kinds = new Set();
       const kindOf = {};
-      for (const n of graph.nodes) kindOf[n.id] = n.kind;
+      const isMember = {};
+      for (const n of graph.nodes) {
+        kindOf[n.id] = n.kind;
+        isMember[n.id] = !!n.member;
+      }
       for (const e of graph.edges) {
         if (e.kind !== "contains") continue;
+        // A type holding the members the reader opened it to see is not a unit
+        // of the project. Taken as one, every type of its kind would become a
+        // unit, and the drawing would be two trees with nothing between them.
+        if (isMember[e.to]) continue;
         units.add(e.from);
         kinds.add(kindOf[e.from]);
       }
@@ -1853,6 +1905,9 @@
         // What belongs to this node without being one: a Go method, which is
         // its receiver's. Nothing else in the document names one.
         members: n.members || [],
+        // Drawn because its type was opened, not because it is a function of
+        // the project.
+        member: !!n.member,
         // Present from the start, even though only the layout knows its real
         // value. The style maps `z-index` to this field, and a mapping with
         // no field to read does not wait for one to appear: cytoscape falls
@@ -1872,6 +1927,10 @@
     graph.edges.forEach((e, i) => {
       if (only && !(only.has(e.from) && only.has(e.to))) return;
       if (!reachRoot && crossesTrees(e, units)) return;
+      // Drawn from the member that accounts for it, while its type is open.
+      if (e.byMember) return;
+      // A type joined to a member beyond the first level of its tree.
+      if (e.quiet) return;
       edges.push({
         data: {
           id: `e${i}-${e.from}-${e.to}-${e.kind}`,
@@ -2546,7 +2605,10 @@
   function computeClassRingPositions(graph, center, visibleIds, opts) {
     const bandOverflow = !!(opts && opts.bandOverflow);
     const rootSector = (opts && opts.rootSector) || undefined;
-    const fullAdj = undirectedAdj(graph);
+    // Without an open type's members: they are placed as a tree of their own,
+    // and what they are joined to is nothing the project's tree should be
+    // rebuilt around.
+    const fullAdj = undirectedAdj(withoutMembers(graph));
 
     /** @type {Record<string, { id: string; kind: string; file: string; name: string }>} */
     const byId = {};
@@ -2703,6 +2765,16 @@
     /** @type {Record<string, string>} */
     const satelliteOwner = {};
 
+    // Before the satellites: an open type's members are a tree of their own,
+    // not a ring of things that happened to attach to it. Placed first, they
+    // are part of the space every other satellite is seated around.
+    /** @type {Map<string, number>} */
+    const rooms = new Map();
+    for (const typeId of openTypesIn(graph)) {
+      if (!positions[typeId]) continue;
+      rooms.set(typeId, placeMemberTree(graph, typeId, positions, outwardAngles));
+    }
+
     placeAllSatellites(
       graph,
       byId,
@@ -2729,6 +2801,9 @@
 
     placeUnlinkedCluster(leftover, byId, positions, fullAdj);
     placeGridBlock(leftover.filter((id) => positions[id]), positions, shelf);
+    // Last, over everything that has a place: the room an open type's members
+    // take is room the drawing gives up, and what gives it up is everything.
+    makeRoomForMembers(graph, positions, rooms);
     return {
       positions,
       componentRoots,
@@ -3872,6 +3947,286 @@
    * @returns {string | null}
    */
   /**
+   * The step from one level of an open type's members to the next.
+   *
+   * A member's circle is `SAT_DIAMETER` across, and a level has to clear the
+   * one inside it with room for a label between them. Sized for members, not
+   * for types: `RING_RADIUS` between levels would put a four-level tree 720px
+   * from the type it belongs to. Wide enough that one level reads as a level,
+   * rather than as the ring inside it grown thicker.
+   */
+  const MEMBER_STEP = 80;
+
+  /**
+   * How far past the room it needs an open type still pushes the drawing.
+   *
+   * Anything nearer than this multiple of that room moves outward, and the
+   * nearer it is the further it moves; past it nothing moves at all. Greater
+   * than 1, because that is what keeps the push from ever reordering two nodes
+   * on one ray: the move grows with distance for every `SPREAD > 1`.
+   */
+  const MEMBER_SPREAD = 3;
+
+  /**
+   * The types this drawing has members under, in the order their members were
+   * added — which is the order the reader opened them.
+   *
+   * Read off the graph rather than taken from the viewer's state, so the
+   * layout stays a function of what it is given.
+   */
+  function openTypesIn(graph) {
+    const members = drawnMemberIds(graph);
+    if (!members.size) return [];
+    const idx = edgeIndex(graph);
+    /** @type {string[]} */
+    const order = [];
+    const seen = new Set();
+    for (const n of graph.nodes) {
+      if (!members.has(n.id)) continue;
+      for (const e of idx.incoming[n.id] || NO_EDGES) {
+        if (e.kind !== "contains" || seen.has(e.id)) continue;
+        seen.add(e.id);
+        order.push(e.id);
+      }
+    }
+    return order;
+  }
+
+  /**
+   * What an open type's members hang off, as a tree rooted on the type.
+   *
+   * The way in — the member no member of that type calls — hangs off the type;
+   * what it calls hangs off it, and so on outward. A member no chain of calls
+   * reaches hangs off the type beside the way in, which is where a reader would
+   * look for something nothing else leads to.
+   *
+   * Breadth first, so a member called from two places is drawn under the
+   * shallower of them, and sorted at every step, so the same artifact comes out
+   * the same way twice.
+   */
+  function memberTreeOf(graph, typeId) {
+    const members = drawnMemberIds(graph);
+    const idx = edgeIndex(graph);
+    /** @type {any[]} */
+    const mine = [];
+    const byId = {};
+    for (const n of graph.nodes) byId[n.id] = n;
+    for (const e of idx.outgoing[typeId] || NO_EDGES) {
+      if (e.kind === "contains" && members.has(e.id) && byId[e.id]) mine.push(byId[e.id]);
+    }
+    if (!mine.length) return null;
+    const set = new Set(mine.map((n) => n.id));
+    /** @type {{from: string, to: string}[]} */
+    const calls = [];
+    for (const n of mine) {
+      for (const e of idx.outgoing[n.id] || NO_EDGES) {
+        if (set.has(e.id) && e.id !== n.id) calls.push({ from: n.id, to: e.id });
+      }
+    }
+    const root = wayIn(mine, calls);
+    /** @type {Record<string, string[]>} */
+    const out = {};
+    for (const e of calls) (out[e.from] = out[e.from] || []).push(e.to);
+    /** @type {Record<string, string[]>} */
+    const children = { [typeId]: [] };
+    const seen = new Set();
+    /** @type {string[]} */
+    const queue = [];
+    if (root) {
+      children[typeId].push(root);
+      seen.add(root);
+      queue.push(root);
+    }
+    while (queue.length) {
+      const id = queue.shift();
+      for (const to of (out[id] || []).slice().sort()) {
+        if (seen.has(to)) continue;
+        seen.add(to);
+        (children[id] = children[id] || []).push(to);
+        queue.push(to);
+      }
+    }
+    // Reached by nothing: beside the way in, rather than nowhere.
+    for (const n of mine.slice().sort((a, b) => (a.id < b.id ? -1 : 1))) {
+      if (!seen.has(n.id)) children[typeId].push(n.id);
+    }
+    return { root: typeId, children, ids: mine.map((n) => n.id) };
+  }
+
+  /**
+   * Place an open type's members around it, and say how much room they took.
+   *
+   * The same rule the class tree is laid out by — a level at a time, each node
+   * owning a slice of its parent's slice in proportion to the leaves below it —
+   * at a step sized for members. A level that cannot hold what is on it at that
+   * radius is moved out until it can, which a tree of members can afford and
+   * the class tree cannot: there is one of these, and it is what the reader
+   * asked to see.
+   *
+   * @returns {number} the radius the tree reaches, from the type
+   */
+  function placeMemberTree(graph, typeId, positions, outwardAngles) {
+    const tree = memberTreeOf(graph, typeId);
+    const origin = positions[typeId];
+    if (!tree || !origin) return 0;
+    const beside = besideTheType(tree, typeId, origin, positions, outwardAngles);
+    const leaves = leafCounts(tree.children, typeId);
+    // The leaves of the whole tree: what every slice is a share of.
+    const total = leaves[typeId] || 1;
+    const step = SAT_DIAMETER + SAT_GAP;
+    const base = outwardAngles[typeId] !== undefined ? outwardAngles[typeId] : SECTOR_ORIGIN;
+    /** @type {Record<string, {start: number, width: number}>} */
+    const sectorOf = { [typeId]: { start: base, width: 2 * Math.PI } };
+    let level = [typeId];
+    let radius = 0;
+    let reach = 0;
+    const placed = new Set([typeId]);
+    if (beside) placed.add(beside);
+    while (level.length) {
+      /** @type {{parent: string, kids: string[]}[]} */
+      const work = [];
+      for (const p of level) {
+        const kids = (tree.children[p] || []).filter((id) => !placed.has(id));
+        if (kids.length) work.push({ parent: p, kids });
+      }
+      if (!work.length) break;
+      // One step further out, and never nearer than the radius at which the
+      // narrowest slice on this level holds one member.
+      //
+      // Every node's slice is its share of the leaves below the whole tree, so
+      // no slice anywhere is narrower than one leaf's worth — `2π / L` — and
+      // the radius this asks for is never more than `L · step / 2π`. Asked per
+      // level rather than once for the tree, the levels near the type, whose
+      // slices are wide, stay near it: the tree grows outward the way the
+      // calls do instead of starting at the radius its outermost level needs.
+      let narrowest = 2 * Math.PI;
+      for (const w of work) {
+        let weight = 0;
+        for (const id of w.kids) weight += leaves[id] || 1;
+        for (const id of w.kids) {
+          narrowest = Math.min(narrowest, ((leaves[id] || 1) / weight) * sectorOf[w.parent].width);
+        }
+      }
+      radius = Math.max(radius + MEMBER_STEP, step / Math.max(narrowest, 2 * Math.PI / total));
+      /** @type {string[]} */
+      const next = [];
+      for (const w of work) {
+        const sector = sectorOf[w.parent];
+        let weight = 0;
+        for (const id of w.kids) weight += leaves[id] || 1;
+        let at = sector.start;
+        for (const id of w.kids) {
+          const share = ((leaves[id] || 1) / weight) * sector.width;
+          const angle = at + share / 2;
+          sectorOf[id] = { start: at, width: share };
+          at += share;
+          positions[id] = {
+            x: origin.x + Math.cos(angle) * radius,
+            y: origin.y + Math.sin(angle) * radius,
+          };
+          outwardAngles[id] = angle;
+          placed.add(id);
+          next.push(id);
+        }
+      }
+      reach = radius;
+      level = next;
+    }
+    return reach + SAT_DIAMETER / 2 + SAT_GAP;
+  }
+
+  /**
+   * Draw the member that holds most of the tree beside the type, not out on
+   * the first level.
+   *
+   * A tree drawn round a centre puts each node in the middle of its slice. A
+   * slice wider than half the circle has its middle on the far side of the
+   * circle from half of what it holds, so a way in that leads to most of the
+   * type — `sql_stmt_list`, which reaches 63 of `Parser`'s 69 members — would
+   * sit at one edge of the first level with its children spread round the
+   * whole of the second, and every line out of it would cross the drawing.
+   * Beside the type, its children are the first level around both.
+   *
+   * Changes the tree in place: that member's children become the type's, and
+   * it is placed at the type's side. Returns it, or null where no member holds
+   * more than half.
+   */
+  function besideTheType(tree, typeId, origin, positions, outwardAngles) {
+    const leaves = leafCounts(tree.children, typeId);
+    const total = leaves[typeId] || 1;
+    const heavy = (tree.children[typeId] || []).find((id) => (leaves[id] || 1) * 2 > total);
+    if (!heavy) return null;
+    const own = tree.children[heavy] || [];
+    tree.children[typeId] = tree.children[typeId].filter((id) => id !== heavy).concat(own);
+    tree.children[heavy] = [];
+    // Touching distance: the type's circle and the member's, with the gap two
+    // satellites keep.
+    const gap = NODE_DIAMETER / 2 + SAT_DIAMETER / 2 + SAT_GAP;
+    const toward = outwardAngles[typeId] !== undefined ? outwardAngles[typeId] : SECTOR_ORIGIN;
+    positions[heavy] = {
+      x: origin.x + Math.cos(toward) * gap,
+      y: origin.y + Math.sin(toward) * gap,
+    };
+    outwardAngles[heavy] = toward;
+    return heavy;
+  }
+
+  /**
+   * Move what is around an open type outward, to leave the room its members
+   * need.
+   *
+   * Along the ray from the type, so every node keeps the direction it was in:
+   * the reader who knows where a package sits still finds it in that
+   * direction. Furthest where it is nearest, nothing at all past
+   * `MEMBER_SPREAD` times the room — a change in one corner of the drawing
+   * does not move the other corner.
+   *
+   * An open type and its members move as one body. Pushed node by node, a
+   * second open type's tree would be stretched by the difference across it.
+   */
+  function makeRoomForMembers(graph, positions, rooms) {
+    if (!rooms.size) return;
+    const idx = edgeIndex(graph);
+    const members = drawnMemberIds(graph);
+    /** Which body each id belongs to: an open type, or itself. */
+    /** @type {Record<string, string>} */
+    const bodyOf = {};
+    for (const id of Object.keys(positions)) bodyOf[id] = id;
+    for (const typeId of rooms.keys()) {
+      for (const e of idx.outgoing[typeId] || NO_EDGES) {
+        if (e.kind === "contains" && members.has(e.id)) bodyOf[e.id] = typeId;
+      }
+    }
+    /** @type {Record<string, string[]>} */
+    const parts = {};
+    for (const id of Object.keys(positions)) (parts[bodyOf[id]] = parts[bodyOf[id]] || []).push(id);
+    for (const [typeId, room] of rooms) {
+      const origin = positions[typeId];
+      if (!origin || !(room > 0)) continue;
+      const bound = MEMBER_SPREAD * room;
+      for (const body of Object.keys(parts)) {
+        if (body === typeId) continue;
+        const anchor = positions[body];
+        if (!anchor) continue;
+        const dx = anchor.x - origin.x;
+        const dy = anchor.y - origin.y;
+        const d = Math.hypot(dx, dy);
+        if (d >= bound) continue;
+        // A node sitting exactly on the type has no direction of its own; the
+        // drawing's own outward direction is as good an answer as there is.
+        const push = room * (1 - d / bound);
+        const ux = d > 0 ? dx / d : 0;
+        const uy = d > 0 ? dy / d : -1;
+        const mx = ux * push;
+        const my = uy * push;
+        for (const id of parts[body]) {
+          positions[id] = { x: positions[id].x + mx, y: positions[id].y + my };
+        }
+      }
+    }
+  }
+
+  /**
    * Attach a function/file after all classes are placed.
    * Prefer a class that uses this symbol (e.g. Query → freeze); else a class
    * this symbol uses; else closest class by hop to the root.
@@ -3885,6 +4240,21 @@
     dist,
     localCenter
   ) {
+    // A class that contains this node owns it, before anything else is
+    // considered. That is a type whose members the reader opened: a method
+    // belongs beside the type it is a method of, and the rule below would hang
+    // it off whatever it points at instead — `Scanner`, not the `Parser` it is
+    // written on — which seats two types' methods in one another's places.
+    // A file containing a function is not this case: a file is a unit, and no
+    // unit is among the classes.
+    const index = edgeIndex(graph);
+    for (const e of index.incoming[nodeId] || NO_EDGES) {
+      if (e.kind !== "contains" || !classIds.has(e.id)) continue;
+      // Not yet placed: wait for it, as an unplaced class neighbour is waited
+      // for below, rather than hanging the member somewhere else for good.
+      return positions[e.id] ? e.id : null;
+    }
+
     /** @type {string[]} */
     const positioned = [];
     let hasUnplacedClassNeighbor = false;
@@ -5244,6 +5614,9 @@
       .sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0))
       .map((n) => ({ label: n.file.slice(filePrefixLength) || n.file, title: n.file, file: n.file, line: n.line }));
     listRows(`${group.name} ×${group.members.length}`, rows, { clearBody: true });
+    // A group stands for several types, so there is no one type to act on.
+    panelTypeId = null;
+    syncTypeButtons();
   }
 
   /**
@@ -5258,12 +5631,67 @@
     if (!node || node.empty()) return false;
     const members = node.data("members") || [];
     if (!members.length) return false;
+    const name = node.data("label") || node.data("name") || "";
     listRows(
-      node.data("label") || node.data("name") || "",
+      name,
       members.map((m) => ({ label: m.name, title: `${m.file}:${m.line}`, file: m.file, line: m.line })),
       { clearBody: false, mark }
     );
+    panelTypeId = id;
+    syncTypeButtons();
     return true;
+  }
+
+  /** The node whose members the panel lists, which its two buttons act on. */
+  let panelTypeId = null;
+
+  /** Whether the drawing can open this node where it stands, now. */
+  function canExpand(id) {
+    // Not from inside a view: the view of one type alone already is its
+    // members, and the right button's view is a question about the drawing
+    // as it was when it was asked.
+    if (!id || insideOf || reachRoot || isGroupId(id) || !artifactGraph) return false;
+    const node = artifactGraph.nodes.find((n) => n.id === id);
+    return !!node && hasSomethingInside(node.members);
+  }
+
+  /** Whether this node's members can be drawn alone, now. */
+  function canShowOnly(id) {
+    if (!id || insideOf || isGroupId(id) || !artifactGraph) return false;
+    const node = artifactGraph.nodes.find((n) => n.id === id);
+    return !!node && isMadeOfMembers(node.members);
+  }
+
+  /**
+   * The two buttons beside the panel's title: shown where there is something
+   * for them to draw, and the first pressed while its type is open — a toggle,
+   * as the rail's are, rather than a label that changes its words.
+   */
+  function syncTypeButtons() {
+    const id = panelTypeId;
+    if (commentExpandEl) {
+      const shown = canExpand(id);
+      commentExpandEl.classList.toggle("hidden", !shown);
+      const open = shown && openTypes.includes(id);
+      commentExpandEl.setAttribute("aria-pressed", open ? "true" : "false");
+      commentExpandEl.title = open ? "Collapse members (E)" : "Expand members (E)";
+      commentExpandEl.setAttribute("aria-label", open ? "Collapse members" : "Expand members");
+    }
+    if (commentOnlyEl) commentOnlyEl.classList.toggle("hidden", !canShowOnly(id));
+  }
+
+  /** Open a type where it stands, or put it away if it is open. */
+  function toggleExpand(id) {
+    if (!canExpand(id)) return false;
+    const done = openTypes.includes(id) ? closeHere(id) : openHere(id);
+    syncTypeButtons();
+    return done;
+  }
+
+  /** Draw a type's members alone. */
+  function showOnly(id) {
+    if (!canShowOnly(id)) return false;
+    return openInside(id);
   }
 
   /**
@@ -5315,6 +5743,9 @@
       commentMembersEl.replaceChildren();
       commentMembersEl.classList.add("hidden");
       showsMembers = false;
+      // The buttons belong to the list: gone with it.
+      panelTypeId = null;
+      syncTypeButtons();
     }
     const has = !!id && Array.isArray(lines) && lines.length > 0;
     commentEl.classList.toggle("hidden", !has);
@@ -5470,7 +5901,10 @@
       (n) => !isFoldedAway(n.id) && (!within || within.has(n.id))
     );
     if (!hideFunctions) return new Set(all.map((n) => n.id));
-    const kept = all.filter((n) => n.kind !== "function").map((n) => n.id);
+    // A member drawn where its type stands is on screen because the reader
+    // opened that type, which is a different question from whether they want
+    // the project's functions.
+    const kept = all.filter((n) => n.kind !== "function" || n.member).map((n) => n.id);
     if (kept.length === 0) return new Set(all.map((n) => n.id));
     // The view's subject stays on screen, including when it is a function and
     // the reader then hides functions: a fan with no apex has no subject.
@@ -5768,7 +6202,7 @@
     //
     // With no centre named, the nearest tree is still right: it is what the
     // reader is looking at, and nothing has been said to the contrary.
-    if (settings.centre && cy) {
+    if ((insideCentre || settings.centre) && cy) {
       const named = visibleCenter();
       if (named && !cy.getElementById(named).empty()) {
         frameOn(named);
@@ -6351,6 +6785,9 @@
     reachRoot = null;
     reachIds = null;
     reachReturnView = null;
+    insideOf = null;
+    insideReturn = null;
+    insideCentre = null;
     syncReachStrip();
     showComment(null, null);
     centerClassId = null;
@@ -6366,7 +6803,14 @@
     }
   }
 
-  function setGraph(graph) {
+  /**
+   * Draw this graph.
+   *
+   * `opts.insideCentre` is how the view of one type's members says that it is
+   * being entered: taking a graph is otherwise how the viewer forgets a view,
+   * and the centre has to be in place before the layout runs.
+   */
+  function setGraph(graph, opts) {
     clearError();
     const grouped = withGroups(graph);
     artifactGraph = graph;
@@ -6374,10 +6818,17 @@
     memberGroupOf = grouped.groupOf;
     groupsById = grouped.groupById;
     focusId = null;
+    // With the focus it belongs to. Left behind, the first click on that node
+    // in the new drawing would count as its second and open the file.
+    pendingJumpId = null;
     // The view was a question about the graph that was here.
     reachRoot = null;
     reachIds = null;
     reachReturnView = null;
+    insideOf = null;
+    insideReturn = null;
+    insideCentre = (opts && opts.insideCentre) || null;
+    openTypes = [];
     syncReachStrip();
     // The legend names what a reader can see and the panel offers a colour for
     // it, so both follow the artifact rather than a list fixed at three. From
@@ -6709,7 +7160,12 @@
   if (resetViewEl) {
     resetViewEl.addEventListener("click", resetView);
   }
-  if (reachBackEl) reachBackEl.addEventListener("click", () => closeReach());
+  // One way out, whichever view is up: a view of what a node points to, taken
+  // from inside a type, leaves back into the type rather than to the drawing
+  // two steps away.
+  if (reachBackEl) reachBackEl.addEventListener("click", () => closeReach() || closeInside());
+  if (commentExpandEl) commentExpandEl.addEventListener("click", () => toggleExpand(panelTypeId));
+  if (commentOnlyEl) commentOnlyEl.addEventListener("click", () => showOnly(panelTypeId));
 
   /** Live "N matches — Enter: Name" / "No match" feedback as the user types. */
   /** Reset the Enter-cycle position whenever the typed text has changed since
@@ -6931,6 +7387,11 @@
       // Nothing focused is not an error: the key says "this one", and there is
       // no this one. The press is left alone rather than swallowed.
       if (centreOnFocus() && event.preventDefault) event.preventDefault();
+    } else if (event.key === EXPAND_KEY || event.key === EXPAND_KEY.toUpperCase()) {
+      // The focused node, as the centre key's is: the key says "this one".
+      if (toggleExpand(focusId) && event.preventDefault) event.preventDefault();
+    } else if (event.key === ONLY_KEY || event.key === ONLY_KEY.toUpperCase()) {
+      if (showOnly(focusId) && event.preventDefault) event.preventDefault();
     } else if (event.key === SEARCH_KEY && searchInputEl) {
       searchInputEl.focus();
       searchFocused = true;
@@ -6943,7 +7404,10 @@
       if (settingsEl && !settingsEl.classList.contains("hidden")) {
         setSettingsOpen(false);
         if (event.preventDefault) event.preventDefault();
-      } else if (closeReach()) {
+      } else if (closeReach() || closeInside() || closeHere()) {
+        // One thing at a time, innermost first: a reader who opened three
+        // types closes them one press at a time rather than losing all of
+        // them at once.
         if (event.preventDefault) event.preventDefault();
       }
     }
@@ -6984,6 +7448,300 @@
    * Back to the whole drawing, where the reader left it — the one destination
    * the view has. Returns whether there was a view to leave.
    */
+  /**
+   * What a type is made of, as a drawing: one node per member name, joined by
+   * the calls the members record.
+   *
+   * One node per name, not per member: a language that overloads writes several
+   * members under one name — jackson-databind's `ObjectMapper` declares 172
+   * members under 68 names — and a reader thinks of `readValue` as one thing.
+   * The first member of a name is where opening it goes.
+   */
+  function membersDrawing(node) {
+    const members = memberNodesOf(node);
+    return quietMembership(
+      {
+        nodes: [node, ...members],
+        edges: [
+          ...members.map((m) => ({ from: node.id, to: m.id, kind: "contains" })),
+          ...callsAmong(node),
+        ],
+      },
+      [node.id]
+    );
+  }
+
+  /**
+   * Draw the line from a type to its members only where the tree has one.
+   *
+   * Every member is joined to its type, and the layout needs every one of those
+   * joins to know whose member it is. Drawn, they are sixty-nine lines out of
+   * `Parser`, and the tree its members make — the way in beside the type, each
+   * rule beyond the rule that calls it — is under them. So the type is drawn
+   * joined to the first level of its tree and no further; a member further out
+   * is joined to what calls it, which is where its place in the tree comes
+   * from.
+   */
+  function quietMembership(graph, typeIds) {
+    for (const typeId of typeIds) {
+      const tree = memberTreeOf(graph, typeId);
+      if (!tree) continue;
+      const first = new Set(tree.children[typeId] || []);
+      for (const e of graph.edges) {
+        if (e.from === typeId && e.kind === "contains" && tree.ids.includes(e.to) && !first.has(e.to)) {
+          e.quiet = true;
+        }
+      }
+    }
+    return graph;
+  }
+
+  /** The id a member's name is drawn under, wherever it is drawn. */
+  function memberNodeId(typeId, name) {
+    return `${typeId}::member::${name}`;
+  }
+
+  /** One node per member name, marked as a member so the ƒ toggle leaves it. */
+  function memberNodesOf(node) {
+    const byName = new Map();
+    for (const m of node.members || []) {
+      if (!byName.has(m.name)) byName.set(m.name, m);
+    }
+    return [...byName.values()].map((m) => ({
+      id: memberNodeId(node.id, m.name),
+      kind: "function",
+      name: m.name,
+      file: m.file,
+      line: m.line,
+      member: true,
+    }));
+  }
+
+  /** The calls between one type's members, one line however often written. */
+  function callsAmong(node) {
+    const names = new Set((node.members || []).map((m) => m.name));
+    const edges = [];
+    const seen = new Set();
+    for (const m of node.members || []) {
+      for (const called of m.calls || []) {
+        if (!names.has(called) || called === m.name) continue;
+        const key = `${m.name}\u0000${called}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        edges.push({
+          from: memberNodeId(node.id, m.name),
+          to: memberNodeId(node.id, called),
+          kind: "uses",
+        });
+      }
+    }
+    return edges;
+  }
+
+  /**
+   * The drawing with each open type's members in it, where the type stands.
+   *
+   * The type stays: what points at a type points at the type, and a type that
+   * disappeared when opened would take every line into it off the drawing. Its
+   * members are contained by it, which is how a file contains its functions, so
+   * the layout seats them the way it seats those.
+   *
+   * An edge of the type that a member accounts for is drawn from that member
+   * instead — which is what a reader opens a type to see. One no member
+   * accounts for, a field's type or a supertype, stays the type's.
+   *
+   * @param {{nodes: any[], edges: any[]}} graph the drawing, already folded
+   * @param {Record<string, string>} groupOf what each folded node stands under
+   */
+  function withOpenTypes(graph, groupOf) {
+    if (!openTypes.length || !artifactGraph) return graph;
+    const drawn = new Set(graph.nodes.map((n) => n.id));
+    const kindOf = new Map();
+    for (const e of graph.edges) kindOf.set(`${e.from}\u0000${e.to}`, e.kind);
+    const nodes = graph.nodes.slice();
+    const added = [];
+    const claimed = new Set();
+    const seen = new Set();
+    for (const id of openTypes) {
+      const type = artifactGraph.nodes.find((n) => n.id === id);
+      // A type folded into a group is not drawn under its own id, and a group
+      // stands for several types, so there is nothing single to open.
+      if (!type || !drawn.has(id)) continue;
+      const members = memberNodesOf(type);
+      if (!members.length) continue;
+      nodes.push(...members);
+      for (const m of members) added.push({ from: id, to: m.id, kind: "contains" });
+      added.push(...callsAmong(type));
+      for (const m of type.members || []) {
+        const from = memberNodeId(id, m.name);
+        for (const target of m.points || []) {
+          const to = (groupOf && groupOf[target]) || target;
+          if (to === id || !drawn.has(to)) continue;
+          const key = `${from}\u0000${to}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const kind = kindOf.get(`${id}\u0000${to}`);
+          // Only what the type itself points at. Folding can put a target
+          // under a group the type has no edge to, and a line the drawing
+          // cannot account for is a line the reader cannot check.
+          if (!kind) continue;
+          added.push({ from, to, kind });
+          claimed.add(`${id}\u0000${to}`);
+        }
+      }
+    }
+    // Kept, and marked rather than removed. The layout builds the project's
+    // tree from the type's own edges — which type hangs off which — and the
+    // project around an open type is meant to be the tree it was. Only the
+    // line is drawn somewhere else: from the member that accounts for it.
+    const edges = graph.edges
+      .map((e) => (claimed.has(`${e.from}\u0000${e.to}`) ? { ...e, byMember: true } : e))
+      .concat(added);
+    return quietMembership({ nodes, edges }, openTypes);
+  }
+
+  /**
+   * The drawing as it is without any type opened: its own nodes, and the edges
+   * between them. What the project's tree is built from, so that opening a
+   * type moves what is around it and never rearranges it.
+   */
+  function withoutMembers(graph) {
+    const members = drawnMemberIds(graph);
+    if (!members.size) return graph;
+    return {
+      nodes: graph.nodes.filter((n) => !members.has(n.id)),
+      edges: graph.edges.filter((e) => !members.has(e.from) && !members.has(e.to)),
+    };
+  }
+
+  /** Whether a node's members have anything of their own to draw. */
+  function hasSomethingInside(members) {
+    const names = new Set((members || []).map((m) => m.name));
+    return (members || []).some(
+      (m) =>
+        (m.calls || []).some((c) => names.has(c) && c !== m.name) ||
+        (m.points || []).length > 0
+    );
+  }
+
+  /** Draw a type where it stands, leaving everything else where it is. */
+  function openHere(id) {
+    if (!cy || !artifactGraph || openTypes.includes(id) || isGroupId(id)) return false;
+    if (insideOf || reachRoot) return false;
+    const node = artifactGraph.nodes.find((n) => n.id === id);
+    if (!node || !hasSomethingInside(node.members)) return false;
+    openTypes.push(id);
+    redrawOpen();
+    return true;
+  }
+
+  /** Put a type back to one node. Without an id, the one opened last. */
+  function closeHere(id) {
+    if (!openTypes.length) return false;
+    const want = id === undefined ? openTypes[openTypes.length - 1] : id;
+    const at = openTypes.indexOf(want);
+    if (at < 0) return false;
+    openTypes.splice(at, 1);
+    redrawOpen();
+    return true;
+  }
+
+  /**
+   * Build the drawing again with whatever is open, and leave the reader looking
+   * where they were. The camera is kept by hand: the drawing is rebuilt from
+   * its elements up, and a fresh canvas starts at its own zoom.
+   */
+  function redrawOpen() {
+    if (!artifactGraph) return;
+    const view = cy ? { zoom: cy.zoom(), pan: { ...cy.pan() } } : null;
+    const grouped = withGroups(artifactGraph);
+    memberGroupOf = grouped.groupOf;
+    groupsById = grouped.groupById;
+    fullGraph = withOpenTypes(grouped.graph, grouped.groupOf);
+    ensureCy(fullGraph, visibleIdSet());
+    applyView({ keepView: true });
+    if (view && cy) cy.viewport(view);
+  }
+
+  /**
+   * The way into a drawing of members: one nothing else in the type calls.
+   *
+   * Inside a type the most-called member is a utility. Measured on
+   * sqlparser-ranger's `Parser`, whose 69 members make 342 calls, that is
+   * `eat`, a one-line helper every rule uses, and centred there the grammar the
+   * parser follows sits behind it. `sql_stmt_list`, which nothing calls, is
+   * where a reader starts reading.
+   */
+  function wayIn(members, calls) {
+    const called = new Set(calls.map((e) => e.to));
+    let ways = members.filter((n) => !called.has(n.id)).map((n) => n.id);
+    if (ways.length === 1) return ways[0];
+    // With no way in at all — every member called by another, which is a type
+    // whose members form a ring — the choice is over all of them, as it is for
+    // a drawing with no root to start from.
+    if (!ways.length) ways = members.map((n) => n.id);
+    if (!ways.length) return null;
+    // Several ways in: the criterion that chooses every other centre chooses
+    // among them.
+    const drawing = { nodes: members, edges: calls };
+    return pickCenterAmong(ways, drawing, new Set(members.map((n) => n.id))) || ways[0];
+  }
+
+  /** Whether this node is made of members that call one another. */
+  function isMadeOfMembers(members) {
+    const names = new Set((members || []).map((m) => m.name));
+    return (members || []).some((m) => (m.calls || []).some((c) => names.has(c) && c !== m.name));
+  }
+
+  /** Show what a type is made of, keeping the drawing to come back to. */
+  function openInside(id) {
+    if (!cy || !artifactGraph) return false;
+    const node = artifactGraph.nodes.find((n) => n.id === id);
+    if (!node || !isMadeOfMembers(node.members)) return false;
+    const drawing = membersDrawing(node);
+    const returning = {
+      graph: artifactGraph,
+      view: { zoom: cy.zoom(), pan: { ...cy.pan() } },
+      fns: hideFunctions,
+      name: node.name,
+      members: (node.members || []).length,
+      // What is drawn: one circle per name, which is fewer than the members
+      // wherever a language overloads one. The type's own circle is not one
+      // of them.
+      drawn: drawing.nodes.filter((n) => n.member).length,
+    };
+    // Members are drawn as functions are, so a reader who had functions hidden
+    // would be shown an empty view. Put back on the way out, as the right
+    // button's view puts them back.
+    if (hideFunctions) {
+      hideFunctions = false;
+      syncFnToggle();
+    }
+    setGraph(drawing, { insideCentre: id });
+    insideOf = id;
+    insideReturn = returning;
+    syncReachStrip();
+    return true;
+  }
+
+  /** Leave that view, and give back the drawing it was entered from. */
+  function closeInside() {
+    if (!insideOf || !insideReturn) return false;
+    const back = insideReturn;
+    insideOf = null;
+    insideReturn = null;
+    insideCentre = null;
+    setGraph(back.graph);
+    if (hideFunctions !== back.fns) {
+      hideFunctions = back.fns;
+      syncFnToggle();
+      applyView({ keepView: true });
+    }
+    if (cy && back.view) cy.viewport(back.view);
+    syncReachStrip();
+    return true;
+  }
+
   function closeReach() {
     if (!reachRoot) return false;
     reachRoot = null;
@@ -7012,8 +7770,26 @@
    */
   function syncReachStrip() {
     if (!reachStripEl) return;
-    reachStripEl.classList.toggle("hidden", !reachRoot);
-    if (!reachRoot) return;
+    reachStripEl.classList.toggle("hidden", !reachRoot && !insideOf);
+    // Inside a type, with no node of the drawing pressed: the strip says whose
+    // members these are and how many, which is the same answer in the same
+    // place — the count of a view of 69 circles is 69 members, not a share of
+    // a drawing they are not in.
+    if (!reachRoot) {
+      if (!insideOf || !insideReturn) return;
+      if (reachNameEl) reachNameEl.textContent = insideReturn.name;
+      if (reachCountEl) {
+        const all = insideReturn.members;
+        const here = insideReturn.drawn;
+        const many = all.toLocaleString("en-US") + (all === 1 ? " member" : " members");
+        // Where a name stands for several members the circles are fewer than
+        // the panel's rows, and a count that mentioned only one of the two
+        // numbers would look like the other one was wrong.
+        reachCountEl.textContent =
+          here === all ? many : `${here.toLocaleString("en-US")} of ${many}`;
+      }
+      return;
+    }
     let name = reachRoot;
     if (isGroupId(reachRoot)) name = (groupsById[reachRoot] || {}).name || reachRoot;
     else if (fullGraph) {
@@ -7049,6 +7825,10 @@
   function centreOnFocus() {
     // The right button's view has one subject, and this key would name another.
     if (reachRoot) return false;
+    // Inside a type, the centre is the way in, and a member's id names nothing
+    // in any artifact — stored as a setting it would follow the reader to
+    // every project as a centre none of them has.
+    if (insideOf) return false;
     if (!cy || !focusId) return false;
     const node = cy.getElementById(focusId);
     if (node.empty()) return false;

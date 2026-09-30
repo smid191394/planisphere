@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-09-24
+goal: A type's members are drawn where the type stands, and a member records
+  what it points at outside its own type

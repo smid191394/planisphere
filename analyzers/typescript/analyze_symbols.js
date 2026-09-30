@@ -300,7 +300,17 @@ function analyze(roots) {
     return null;
   };
 
+  /** member element -> the Set its body's names are also written into */
+  const pointsOf = new Map();
+  /** node id -> its members, before what they point at is settled */
+  const membersOf = new Map();
+
   for (const { decl, id: src } of owners) {
+    const members = membersOfDeclaration(decl, nodes.get(src).line);
+    if (members.length) {
+      membersOf.set(src, members);
+      for (const m of members) pointsOf.set(m.element, m.points);
+    }
     const heritage = decl.heritageClauses || [];
 
     // `extends` and `implements` are both `inherits`. Measured across three
@@ -316,9 +326,12 @@ function analyze(roots) {
 
     // Everything else. A name in a type position is a reference; a name where
     // a value is expected is a use.
-    const walk = (node, inType) => {
+    // `sink`, inside a member, is where that member's names are written too:
+    // the edge is the node's, and the member says it named it.
+    const walk = (node, inType, sink) => {
       if (!node) return;
       const typeHere = inType || ts.isTypeNode(node);
+      const into = pointsOf.get(node) || sink;
       if (
         ts.isIdentifier(node) &&
         // `a.b` — only `a` denotes something reachable from here.
@@ -327,9 +340,12 @@ function analyze(roots) {
         !(node.parent && node.parent.name === node && DECLARATION_KIND.has(node.parent.kind))
       ) {
         const to = resolveName(node);
-        if (to) addEdge(src, to, typeHere ? "references" : "uses");
+        if (to) {
+          addEdge(src, to, typeHere ? "references" : "uses");
+          if (into && to !== src) into.add(to);
+        }
       }
-      ts.forEachChild(node, (child) => walk(child, typeHere));
+      ts.forEachChild(node, (child) => walk(child, typeHere, into));
     };
 
     // An interface's whole body is type positions, and so is a type alias's.
@@ -339,6 +355,21 @@ function analyze(roots) {
       if (heritage.includes(child)) return;
       walk(child, bodyIsType);
     });
+  }
+
+  // What each member points at is which of its node's edges it accounts for,
+  // settled now that the edges are: a name resolved inside a method can reach
+  // something its node has no edge to.
+  for (const [id, members] of membersOf) {
+    const out = [];
+    for (const m of members) {
+      const member = { name: m.name, file: nodes.get(id).file, line: m.line };
+      if (m.calls.length) member.calls = m.calls;
+      const points = [...m.points].filter((to) => edgeAt.has(id + " " + to)).sort();
+      if (points.length) member.points = points;
+      out.push(member);
+    }
+    nodes.get(id).members = out;
   }
 
   return {
@@ -351,6 +382,74 @@ function analyze(roots) {
       a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : 0
     ),
   };
+}
+
+/**
+ * The members a class or an interface declares: its methods, its constructor
+ * and each property holding a function, or its method signatures.
+ *
+ * A property holding a function is the member form of `export const f = () =>
+ * …`, which is a function at the top level; a class written that way has its
+ * methods there. An accessor is read as a property, not called, and is left
+ * out. The last declaration of a name is the member, as the last of a top-level
+ * name is the node: after overload signatures, it is the implementation. A
+ * member on its node's own line is left out, the document holding no member at
+ * a node's place.
+ */
+function membersOfDeclaration(decl, nodeLine) {
+  if (!ts.isClassDeclaration(decl) && !ts.isInterfaceDeclaration(decl)) return [];
+  const sf = decl.getSourceFile();
+  const lineOf = (pos) => sf.getLineAndCharacterOfPosition(pos).line + 1;
+  const last = new Map();
+  for (const el of decl.members || []) {
+    let name = null;
+    let at = null;
+    if (ts.isConstructorDeclaration(el)) {
+      name = "constructor";
+      const keyword = el.getChildren(sf).find((c) => c.kind === ts.SyntaxKind.ConstructorKeyword);
+      at = keyword || el;
+    } else if (
+      ts.isMethodDeclaration(el) ||
+      ts.isMethodSignature(el) ||
+      (ts.isPropertyDeclaration(el) &&
+        el.initializer &&
+        (ts.isArrowFunction(el.initializer) || ts.isFunctionExpression(el.initializer)))
+    ) {
+      if (el.name && (ts.isIdentifier(el.name) || ts.isPrivateIdentifier(el.name) || ts.isStringLiteral(el.name))) {
+        name = el.name.text;
+        at = el.name;
+      }
+    }
+    if (!name) continue;
+    const line = lineOf(at.getStart(sf));
+    if (line === nodeLine) continue;
+    last.delete(name);
+    last.set(name, { name, line, element: el });
+  }
+  const own = new Set(last.keys());
+  return [...last.values()].map((m) => ({
+    ...m,
+    calls: callsOnThis(m.element).filter((c) => own.has(c)),
+    points: new Set(),
+  }));
+}
+
+/** What a member calls on `this`, in the order written, once each. */
+function callsOnThis(element) {
+  const found = [];
+  const visit = (node) => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.expression.kind === ts.SyntaxKind.ThisKeyword
+    ) {
+      const name = node.expression.name.text;
+      if (!found.includes(name)) found.push(name);
+    }
+    ts.forEachChild(node, visit);
+  };
+  ts.forEachChild(element, visit);
+  return found;
 }
 
 module.exports = {

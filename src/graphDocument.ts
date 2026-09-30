@@ -141,7 +141,38 @@ export function buildGraphWebviewHtml(
          its own corner would spend the drawing's space on two panels that are
          rarely wanted at once. -->
     <aside id="comment" class="hidden" aria-live="polite">
-      <h3 id="comment-title"></h3>
+      <!-- The two ways of reading a type sit beside its name: they act on the
+           thing named, and there they cost no height and are never pushed
+           below a long comment. Shown only where the type has members that
+           record something to draw. -->
+      <div id="comment-head">
+        <h3 id="comment-title"></h3>
+        <!-- Drawn, not typed: two symbols from a font come from whichever font
+             has them, at whatever size and weight that font gives them, and no
+             two of them sit alike. One grid, one stroke, and one figure at the
+             middle of both — a node and what it is made of — so neither looks
+             the heavier. What surrounds it says which: a ring, the orbit the
+             members are drawn on in place; corners, that figure and nothing
+             else. -->
+        <button id="comment-expand" class="hidden" type="button" aria-pressed="false"
+                title="Expand members (E)" aria-label="Expand members"
+          ><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none"
+                stroke="currentColor" stroke-width="1.3" stroke-linecap="round"
+            ><circle cx="8" cy="8" r="1.6" /><circle cx="8" cy="3.8" r="1"
+            /><circle cx="4.36" cy="10.1" r="1" /><circle cx="11.64" cy="10.1" r="1"
+            /><path d="M8 6.4V4.8M6.61 8.8 5.23 9.6M9.39 8.8l1.38.8" /><circle cx="8" cy="8" r="6.9" /></svg
+        ></button>
+        <button id="comment-only" class="hidden" type="button"
+                title="Members only (M)" aria-label="Members only"
+          ><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none"
+                stroke="currentColor" stroke-width="1.3" stroke-linecap="round"
+                stroke-linejoin="round"
+            ><circle cx="8" cy="8" r="1.6" /><circle cx="8" cy="3.8" r="1"
+            /><circle cx="4.36" cy="10.1" r="1" /><circle cx="11.64" cy="10.1" r="1"
+            /><path d="M8 6.4V4.8M6.61 8.8 5.23 9.6M9.39 8.8l1.38.8" /><path d="M1.3 4.6V2.3a1 1 0 0 1 1-1h2.3M11.4 1.3h2.3a1 1 0 0 1 1 1v2.3M14.7 11.4v2.3a1 1 0 0 1-1 1h-2.3M4.6 14.7H2.3a1 1 0 0 1-1-1v-2.3"
+            /></svg
+        ></button>
+      </div>
       <pre id="comment-body"></pre>
       <ul id="comment-members" class="hidden"></ul>
     </aside>
@@ -424,6 +455,8 @@ export function buildGraphWebviewHtml(
         <li><span class="term">right-click</span><span class="gloss">what it points to, two steps</span></li>
         <li><span class="term">empty space</span><span class="gloss">clear the selection</span></li>
         <li><span class="term"><kbd>c</kbd></span><span class="gloss">centre it, or hand it back</span></li>
+        <li><span class="term"><kbd>e</kbd></span><span class="gloss">expand its members, or fold</span></li>
+        <li><span class="term"><kbd>m</kbd></span><span class="gloss">its members alone</span></li>
         <li><span class="term"><kbd>f</kbd></span><span class="gloss">fit everything</span></li>
         <li><span class="term"><kbd>/</kbd></span><span class="gloss">search by name</span></li>
       </ul>
