@@ -31,3 +31,6 @@ analyzers/go/prebuilt/
 
 # The VS Code the end-to-end suite downloads and runs: 329 MB for 1.138.0, cached here.
 .vscode-test/
+
+# Windows' download mark, as a file of its own once the download is copied into WSL.
+*:Zone.Identifier

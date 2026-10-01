@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1
+
+- A new icon: a planisphere.
+
 ## 0.1.0
 
 The first release.

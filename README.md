@@ -3,6 +3,9 @@
 ![Planisphere](docs/images/banner.jpg)
 
 <p align="center">
+  <a href="https://marketplace.visualstudio.com/items?itemName=Sciad.planisphere"><img alt="VS Code Marketplace" src="https://img.shields.io/badge/VS%20Code%20Marketplace-Sciad.planisphere-007ACC" /></a>
+  <a href="https://open-vsx.org/extension/Sciad/planisphere"><img alt="Open VSX version" src="https://img.shields.io/open-vsx/v/Sciad/planisphere" /></a>
+  <a href="https://open-vsx.org/extension/Sciad/planisphere"><img alt="Open VSX downloads" src="https://img.shields.io/open-vsx/dt/Sciad/planisphere" /></a>
   <a href="LICENSE"><img alt="license: MIT" src="https://img.shields.io/badge/license-MIT-green" /></a>
   <a href="https://code.visualstudio.com/"><img alt="VS Code 1.85+" src="https://img.shields.io/badge/VS%20Code-1.85%2B-blue" /></a>
 </p>

@@ -3,7 +3,7 @@
   "displayName": "Planisphere",
   "preview": true,
   "description": "Read a codebase as a drawing: the types of a Python, TypeScript, Go, Rust or Java project as a radial map, with click-to-jump to the source.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "Sciad",
   "license": "MIT",
   "repository": {

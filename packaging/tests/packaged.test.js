@@ -189,6 +189,14 @@ test("only images in media/ are shipped", () => {
   assert.deepStrictEqual(stray, [], `these should not be in the package: ${stray.join(", ")}`);
 });
 
+test("no Windows download marks are shipped", () => {
+  // A file downloaded on Windows and copied into WSL brings its
+  // `Zone.Identifier` stream with it, as a file of its own beside it, and the
+  // image rule above does not see it: its name ends in `:Zone.Identifier`.
+  const marks = shipped().filter((f) => f.includes(":Zone.Identifier"));
+  assert.deepStrictEqual(marks, [], `these should not be in the package: ${marks.join(", ")}`);
+});
+
 test("only the two dependencies the product runs on ship", () => {
   // A development dependency's own optional packages sit at the top of
   // node_modules beside the product's, where the packager takes them for

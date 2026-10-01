@@ -72,3 +72,6 @@ tsconfig.json
 **/.git/**
 **/.venv/**
 **/venv/**
+
+# Windows' download mark, as a file of its own once the download is copied into WSL.
+**/*:Zone.Identifier
