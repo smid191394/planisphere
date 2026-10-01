@@ -9,6 +9,12 @@
 
 Planisphere draws a project's types as a radial map. Click one to open its source.
 
+It is early: this is 0.x. The drawing and the `planisphere.json` it is made
+from may still change between versions, and a file written by one version may
+need writing again by the next. What you draw with it is what decides what
+changes — [open an issue](https://github.com/smid191394/planisphere/issues)
+with the picture.
+
 ![FastAPI's types, drawn by Planisphere](docs/images/overview.jpg)
 
 <sub>FastAPI, from its own source, with its functions shown. Blue is a type and

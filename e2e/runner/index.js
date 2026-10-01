@@ -9,7 +9,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const ID = "planisphere.planisphere";
+const ID = "Sciad.planisphere";
 const ARTIFACT = "planisphere.json";
 const VIEW_TYPE = "planisphere.structureGraph";
 
